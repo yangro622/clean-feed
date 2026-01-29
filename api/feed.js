@@ -1,5 +1,9 @@
 const Parser = require('rss-parser');
-const accounts = require('../accounts.json');
+
+// Accounts from environment variable (comma-separated) or fallback to file
+const accounts = process.env.TWITTER_ACCOUNTS
+  ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
+  : require('../accounts.json');
 
 const NITTER_INSTANCES = [
   'nitter.privacydev.net',
