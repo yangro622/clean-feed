@@ -1,0 +1,11 @@
+{
+  "name": "clean-feed",
+  "version": "1.0.0",
+  "description": "Minimal personal Twitter feed reader",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "rss-parser": "^3.13.0"
+  }
+}
