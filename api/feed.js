@@ -8,6 +8,9 @@ const COST_PER_1000_TWEETS = 0.15; // $0.15 per 1,000 tweets
 const MAX_COST_PER_REQUEST = 1.00; // $1.00 max per request
 const MAX_TWEETS_PER_REQUEST = Math.floor((MAX_COST_PER_REQUEST / COST_PER_1000_TWEETS) * 1000); // ~6,666 tweets
 
+// Rate limit: free tier = 1 request per 5 seconds
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=86400'); // 24 hour CDN cache
@@ -24,7 +27,12 @@ module.exports = async (req, res) => {
     let totalTweetsFetched = 0;
 
     // Fetch tweets for each account
-    for (const username of accounts) {
+    for (let i = 0; i < accounts.length; i++) {
+      const username = accounts[i];
+
+      // Rate limit: wait 5s between requests (skip for first)
+      if (i > 0) await sleep(5000);
+
       // Cost safety check
       if (totalTweetsFetched >= MAX_TWEETS_PER_REQUEST) {
         console.warn(`Cost limit reached: ${totalTweetsFetched} tweets fetched, stopping`);
