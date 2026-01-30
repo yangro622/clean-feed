@@ -1,7 +1,10 @@
 // Accounts from environment variable (comma-separated) or fallback to file
-const accounts = process.env.TWITTER_ACCOUNTS
-  ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
-  : require('../accounts.json');
+// Use TEST_MODE=1 to test with a single account
+const accounts = process.env.TEST_MODE
+  ? ['elonmusk']
+  : process.env.TWITTER_ACCOUNTS
+    ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
+    : require('../accounts.json');
 
 // Rate limit: free tier = 1 request per 5 seconds
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -91,8 +94,9 @@ module.exports = async (req, res) => {
         }
       }
 
-      // Send new posts for this account
+      // Send new posts for this account (sorted oldest to newest)
       if (newPosts.length > 0) {
+        newPosts.sort((a, b) => new Date(a.date) - new Date(b.date));
         res.write(`data: ${JSON.stringify({ type: 'posts', username, posts: newPosts })}\n\n`);
       }
 
@@ -101,8 +105,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  // Send completion
-  allPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
+  // Send completion (posts kept in fetch order: by account, oldest-to-newest within)
   res.write(`data: ${JSON.stringify({
     type: 'complete',
     count: allPosts.length,

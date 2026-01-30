@@ -1,7 +1,10 @@
 // Accounts from environment variable (comma-separated) or fallback to file
-const accounts = process.env.TWITTER_ACCOUNTS
-  ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
-  : require('../accounts.json');
+// Use TEST_MODE=1 to test with a single account
+const accounts = process.env.TEST_MODE
+  ? ['elonmusk']
+  : process.env.TWITTER_ACCOUNTS
+    ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
+    : require('../accounts.json');
 
 // Cost control settings
 const COST_PER_1000_TWEETS = 0.15; // $0.15 per 1,000 tweets

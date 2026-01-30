@@ -436,9 +436,8 @@
           }
 
           if (data.type === 'posts') {
-            // Add new posts and re-render sorted
+            // Add new posts in fetch order (sorted oldest-to-newest within account)
             allPosts.push(...data.posts);
-            allPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
             feed.innerHTML = allPosts.map(renderPost).join('');
           }
 
