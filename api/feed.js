@@ -10,7 +10,7 @@ const MAX_TWEETS_PER_REQUEST = Math.floor((MAX_COST_PER_REQUEST / COST_PER_1000_
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 's-maxage=300');
+  res.setHeader('Cache-Control', 's-maxage=86400'); // 24 hour CDN cache
 
   const apiKey = process.env.TWITTERAPI_IO_KEY;
   if (!apiKey) {
