@@ -181,6 +181,12 @@
       text-decoration: underline;
     }
 
+    .quoted-tweet .quoted-link {
+      font-size: 13px;
+      color: #1d9bf0;
+      margin-top: 8px;
+    }
+
     .empty {
       text-align: center;
       padding: 60px 20px;
@@ -312,13 +318,20 @@
     }
 
     function renderQuotedTweet(quoted) {
-      if (!quoted) return '';
+      if (!quoted || !quoted.link) return '';
+
+      // Simple link format - avoids issues with videos, long text, etc.
+      const previewText = quoted.text
+        ? escapeHtml(quoted.text.substring(0, 100)) + (quoted.text.length > 100 ? '...' : '')
+        : '';
+
       return `
         <a href="${quoted.link}" target="_blank" class="quoted-tweet">
           <div class="quoted-header">
-            <span class="quoted-username">@${quoted.username}</span>
+            <span class="quoted-username">@${quoted.username || 'tweet'}</span>
           </div>
-          <div class="quoted-text">${formatText(quoted.text, {})}</div>
+          ${previewText ? `<div class="quoted-text">${previewText}</div>` : ''}
+          <div class="quoted-link">View quoted tweet →</div>
         </a>
       `;
     }
