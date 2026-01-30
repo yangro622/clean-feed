@@ -87,6 +87,11 @@ module.exports = async (req, res) => {
               link: tweet.url || `https://x.com/${username}/status/${tweet.id}`,
               images,
               urlMap,
+              quotedTweet: tweet.quoted_tweet ? {
+                username: tweet.quoted_tweet.author?.userName,
+                text: tweet.quoted_tweet.text,
+                link: tweet.quoted_tweet.url,
+              } : null,
             });
           }
         }

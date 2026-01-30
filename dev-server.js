@@ -15,6 +15,7 @@ if (fs.existsSync(envPath)) {
 }
 
 const feedHandler = require('./api/feed.js');
+const feedStreamHandler = require('./api/feed-stream.js');
 
 const PORT = 3000;
 
@@ -27,6 +28,17 @@ const MIME_TYPES = {
 
 const server = http.createServer(async (req, res) => {
   console.log(`${req.method} ${req.url}`);
+
+  // API stream route (SSE)
+  if (req.url === '/api/feed-stream') {
+    try {
+      await feedStreamHandler(req, res);
+    } catch (err) {
+      console.error('Stream error:', err);
+      res.end();
+    }
+    return;
+  }
 
   // API route
   if (req.url === '/api/feed') {

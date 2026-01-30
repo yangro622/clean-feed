@@ -136,6 +136,51 @@
       margin-top: 8px;
     }
 
+    .quoted-tweet {
+      display: block;
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid #2f3336;
+      border-radius: 12px;
+      background: #16181c;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+
+    .quoted-tweet:hover {
+      background: #1d1f23;
+    }
+
+    .quoted-tweet .quoted-header {
+      margin-bottom: 4px;
+    }
+
+    .quoted-tweet .quoted-username {
+      font-weight: 700;
+      color: #e7e9ea;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .quoted-tweet .quoted-username:hover {
+      text-decoration: underline;
+    }
+
+    .quoted-tweet .quoted-text {
+      font-size: 14px;
+      color: #e7e9ea;
+      word-wrap: break-word;
+    }
+
+    .quoted-tweet .quoted-text a {
+      color: #1d9bf0;
+      text-decoration: none;
+    }
+
+    .quoted-tweet .quoted-text a:hover {
+      text-decoration: underline;
+    }
+
     .empty {
       text-align: center;
       padding: 60px 20px;
@@ -266,6 +311,18 @@
       return formatted;
     }
 
+    function renderQuotedTweet(quoted) {
+      if (!quoted) return '';
+      return `
+        <a href="${quoted.link}" target="_blank" class="quoted-tweet">
+          <div class="quoted-header">
+            <span class="quoted-username">@${quoted.username}</span>
+          </div>
+          <div class="quoted-text">${formatText(quoted.text, {})}</div>
+        </a>
+      `;
+    }
+
     function renderPost(post) {
       const time = timeAgo(new Date(post.date));
       const images = (post.images || []).map(url =>
@@ -279,6 +336,7 @@
             <span class="time">${time}</span>
           </div>
           <div class="post-content">${formatText(post.text, post.urlMap || {})}</div>
+          ${renderQuotedTweet(post.quotedTweet)}
           ${images ? `<div class="post-images">${images}</div>` : ''}
           <a class="post-link" href="${post.link}" target="_blank">View on X</a>
         </article>
@@ -356,23 +414,73 @@
 
       refreshBtn.disabled = true;
 
-      try {
-        const res = await fetch('/api/feed');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Use streaming API
+      const allPosts = [];
+      let accounts = [];
 
-        const data = await res.json();
-        setCachedData(data);
-        renderFeed(data, status, feed);
-        renderAccounts(data._meta?.accounts || []);
+      try {
+        const eventSource = new EventSource('/api/feed-stream');
+
+        eventSource.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+
+          if (data.type === 'start') {
+            accounts = data.accounts;
+            renderAccounts(accounts);
+            status.textContent = `Loading ${data.total} accounts...`;
+            feed.innerHTML = '';
+          }
+
+          if (data.type === 'progress') {
+            status.textContent = `Fetching @${data.username}... (${data.current}/${data.total})`;
+          }
+
+          if (data.type === 'posts') {
+            // Add new posts and re-render sorted
+            allPosts.push(...data.posts);
+            allPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
+            feed.innerHTML = allPosts.map(renderPost).join('');
+          }
+
+          if (data.type === 'complete') {
+            eventSource.close();
+            const cacheData = {
+              updated: new Date().toISOString(),
+              count: data.count,
+              posts: allPosts,
+              _meta: { accounts, tweetsFetched: data.tweetsFetched }
+            };
+            setCachedData(cacheData);
+            status.textContent = `${data.count} posts · Fetched ${formatFetchTime(new Date())}`;
+            refreshBtn.disabled = false;
+
+            if (allPosts.length === 0) {
+              feed.innerHTML = '<div class="empty">No posts in the last 24 hours.</div>';
+            }
+          }
+
+          if (data.type === 'error') {
+            eventSource.close();
+            throw new Error(data.message);
+          }
+        };
+
+        eventSource.onerror = () => {
+          eventSource.close();
+          if (allPosts.length === 0) {
+            if (cached) {
+              renderFeed(cached, status, feed);
+              status.textContent = `${cached.count} posts · Fetched ${formatFetchTime(new Date(cached.updated))} (refresh failed)`;
+            } else {
+              feed.innerHTML = '<div class="error">Failed to load feed</div>';
+              status.textContent = 'Error loading feed';
+            }
+          }
+          refreshBtn.disabled = false;
+        };
       } catch (err) {
-        if (!cached) {
-          feed.innerHTML = `<div class="error">Failed to load feed: ${err.message}</div>`;
-          status.textContent = 'Error loading feed';
-        } else {
-          // Keep showing cached data on error
-          status.textContent = `${cached.count} posts · Fetched ${formatFetchTime(new Date(cached.updated))} (refresh failed)`;
-        }
-      } finally {
+        feed.innerHTML = `<div class="error">Failed to load feed: ${err.message}</div>`;
+        status.textContent = 'Error loading feed';
         refreshBtn.disabled = false;
       }
     }
