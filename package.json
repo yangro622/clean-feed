@@ -3,10 +3,16 @@
   "version": "1.0.0",
   "description": "Minimal personal Twitter feed reader",
   "scripts": {
-    "dev": "vercel dev"
+    "dev": "node dev-server.js",
+    "dev:vercel": "vercel dev"
   },
   "dependencies": {
+    "@the-convocation/twitter-scraper": "^0.21.1",
+    "rettiwt-api": "^6.0.8",
     "rss-parser": "^3.13.0",
     "twitter-api-v2": "^1.29.0"
+  },
+  "devDependencies": {
+    "dotenv": "^17.2.3"
   }
 }

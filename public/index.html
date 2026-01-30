@@ -142,7 +142,7 @@
     <div class="loading">Fetching posts...</div>
   </main>
 
-  <button class="refresh-btn" id="refresh" onclick="loadFeed()">Refresh</button>
+  <button class="refresh-btn" id="refresh" onclick="loadFeed(true)">Refresh</button>
 
   <script>
     function timeAgo(date) {
@@ -170,31 +170,84 @@
       `;
     }
 
-    async function loadFeed() {
+    const CACHE_KEY = 'cleanfeed_cache';
+    const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+
+    function getCachedData() {
+      try {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (!cached) return null;
+        return JSON.parse(cached);
+      } catch {
+        return null;
+      }
+    }
+
+    function setCachedData(data) {
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      } catch {
+        // localStorage full or unavailable
+      }
+    }
+
+    function formatLastUpdated(date) {
+      const hours = Math.floor((Date.now() - date) / (1000 * 60 * 60));
+      if (hours < 1) return 'Updated just now';
+      if (hours === 1) return 'Updated 1 hour ago';
+      if (hours < 24) return `Updated ${hours} hours ago`;
+      const days = Math.floor(hours / 24);
+      return `Updated ${days} day${days > 1 ? 's' : ''} ago`;
+    }
+
+    function renderFeed(data, status, feed) {
+      if (data.posts.length === 0) {
+        feed.innerHTML = '<div class="empty">No posts in the last 24 hours.</div>';
+      } else {
+        feed.innerHTML = data.posts.map(renderPost).join('');
+      }
+      const updated = new Date(data.updated);
+      status.textContent = `${data.count} posts · ${formatLastUpdated(updated)}`;
+    }
+
+    async function loadFeed(forceRefresh = false) {
       const feed = document.getElementById('feed');
       const status = document.getElementById('status');
       const refreshBtn = document.getElementById('refresh');
 
+      // Check cache first (unless force refresh)
+      const cached = getCachedData();
+      if (cached && !forceRefresh) {
+        const cacheAge = Date.now() - new Date(cached.updated).getTime();
+        renderFeed(cached, status, feed);
+
+        // If cache is fresh enough, don't fetch
+        if (cacheAge < CACHE_MAX_AGE) {
+          return;
+        }
+        // Cache is stale, fetch in background
+        status.textContent += ' (refreshing...)';
+      } else {
+        feed.innerHTML = '<div class="loading">Fetching posts...</div>';
+      }
+
       refreshBtn.disabled = true;
-      feed.innerHTML = '<div class="loading">Fetching posts...</div>';
 
       try {
         const res = await fetch('/api/feed');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
         const data = await res.json();
-
-        if (data.posts.length === 0) {
-          feed.innerHTML = '<div class="empty">No posts in the last 24 hours.</div>';
-        } else {
-          feed.innerHTML = data.posts.map(renderPost).join('');
-        }
-
-        const updated = new Date(data.updated);
-        status.textContent = `${data.count} posts · Updated ${updated.toLocaleTimeString()}`;
+        setCachedData(data);
+        renderFeed(data, status, feed);
       } catch (err) {
-        feed.innerHTML = `<div class="error">Failed to load feed: ${err.message}</div>`;
-        status.textContent = 'Error loading feed';
+        if (!cached) {
+          feed.innerHTML = `<div class="error">Failed to load feed: ${err.message}</div>`;
+          status.textContent = 'Error loading feed';
+        } else {
+          // Keep showing cached data on error
+          status.textContent = `${cached.count} posts · ${formatLastUpdated(new Date(cached.updated))} (refresh failed)`;
+        }
       } finally {
         refreshBtn.disabled = false;
       }

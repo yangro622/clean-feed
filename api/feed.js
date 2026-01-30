@@ -20,17 +20,26 @@ module.exports = async (req, res) => {
   try {
     const allPosts = [];
 
+    // Batch lookup: get all user IDs in one API call (saves 19 calls)
+    const usersResponse = await client.v2.usersByUsernames(accounts);
+    const usernameToId = {};
+    if (usersResponse.data) {
+      for (const user of usersResponse.data) {
+        usernameToId[user.username.toLowerCase()] = user.id;
+      }
+    }
+
+    // Fetch timelines for each user
     for (const username of accounts) {
       try {
-        // Get user ID from username
-        const user = await client.v2.userByUsername(username);
-        if (!user.data) {
+        const userId = usernameToId[username.toLowerCase()];
+        if (!userId) {
           console.error(`User not found: @${username}`);
           continue;
         }
 
         // Get recent tweets
-        const tweets = await client.v2.userTimeline(user.data.id, {
+        const tweets = await client.v2.userTimeline(userId, {
           max_results: 20,
           'tweet.fields': ['created_at', 'text'],
           exclude: ['retweets', 'replies'],
