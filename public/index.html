@@ -395,12 +395,12 @@
 
     function renderFeed(data, status, feed) {
       if (data.posts.length === 0) {
-        feed.innerHTML = '<div class="empty">No posts in the last 24 hours.</div>';
+        feed.innerHTML = '<div class="empty">No posts from the last 24 hours.</div>';
       } else {
         feed.innerHTML = data.posts.map(renderPost).join('');
       }
       const updated = new Date(data.updated);
-      status.textContent = `${data.count} posts · Fetched ${formatFetchTime(updated)}`;
+      status.textContent = `${data.count} posts from last 24h · Updated ${formatFetchTime(updated)}`;
     }
 
     async function loadFeed(forceRefresh = false) {
@@ -463,11 +463,11 @@
               _meta: { accounts, tweetsFetched: data.tweetsFetched }
             };
             setCachedData(cacheData);
-            status.textContent = `${data.count} posts · Fetched ${formatFetchTime(new Date())}`;
+            status.textContent = `${data.count} posts from last 24h · Updated ${formatFetchTime(new Date())}`;
             refreshBtn.disabled = false;
 
             if (allPosts.length === 0) {
-              feed.innerHTML = '<div class="empty">No posts in the last 24 hours.</div>';
+              feed.innerHTML = '<div class="empty">No posts from the last 24 hours.</div>';
             }
           }
 
@@ -482,7 +482,7 @@
           if (allPosts.length === 0) {
             if (cached) {
               renderFeed(cached, status, feed);
-              status.textContent = `${cached.count} posts · Fetched ${formatFetchTime(new Date(cached.updated))} (refresh failed)`;
+              status.textContent = `${cached.count} posts from last 24h · Updated ${formatFetchTime(new Date(cached.updated))} (refresh failed)`;
             } else {
               feed.innerHTML = '<div class="error">Failed to load feed</div>';
               status.textContent = 'Error loading feed';
