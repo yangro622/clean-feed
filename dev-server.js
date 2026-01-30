@@ -17,7 +17,7 @@ if (fs.existsSync(envPath)) {
 const feedHandler = require('./api/feed.js');
 const feedStreamHandler = require('./api/feed-stream.js');
 
-const PORT = 3000;
+const BASE_PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -75,6 +75,18 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Dev server running at http://localhost:${PORT}`);
-});
+function startServer(port) {
+  server.listen(port, () => {
+    console.log(`Dev server running at http://localhost:${port}`);
+  }).on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`Port ${port} in use, trying ${port + 1}...`);
+      server.removeAllListeners('error');
+      startServer(port + 1);
+    } else {
+      throw err;
+    }
+  });
+}
+
+startServer(BASE_PORT);
