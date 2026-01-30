@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - When the user says "remember" something, save it to this CLAUDE.md file
 - Track TODOs as GitHub Issues (use `gh issue create` and `gh issue list`)
+- When closing issues, link the commit hash that resolved it
 - User has no prior frontend experience - explain frontend concepts in beginner-friendly terms
 
 ## Commands
