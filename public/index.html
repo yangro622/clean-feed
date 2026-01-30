@@ -38,6 +38,15 @@
       margin-top: 4px;
     }
 
+    .tagline-link {
+      color: #1d9bf0;
+      text-decoration: none;
+    }
+
+    .tagline-link:hover {
+      text-decoration: underline;
+    }
+
     .meta {
       font-size: 13px;
       color: #71767b;
@@ -146,12 +155,42 @@
       opacity: 0.5;
       cursor: not-allowed;
     }
+
+    .following-section {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #2f3336;
+    }
+
+    .following-section h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #71767b;
+    }
+
+    .following-section ul {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .following-section li a {
+      color: #1d9bf0;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    .following-section li a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>Clean Feed</h1>
-    <p class="tagline">Tweets you care about. Nothing else.</p>
+    <p class="tagline">Tweets you <a href="#following" class="tagline-link">care about</a>. Nothing else.</p>
     <p class="meta" id="status">Loading...</p>
   </header>
 
@@ -160,6 +199,11 @@
   </main>
 
   <button class="refresh-btn" id="refresh" onclick="loadFeed(true)">Refresh</button>
+
+  <footer id="following" class="following-section">
+    <h2>Following</h2>
+    <ul id="accounts-list"></ul>
+  </footer>
 
   <script>
     function timeAgo(date) {
@@ -261,6 +305,13 @@
       });
     }
 
+    function renderAccounts(accounts) {
+      const list = document.getElementById('accounts-list');
+      list.innerHTML = accounts.map(username =>
+        `<li><a href="https://x.com/${username}" target="_blank">@${username}</a></li>`
+      ).join('');
+    }
+
     function renderFeed(data, status, feed) {
       if (data.posts.length === 0) {
         feed.innerHTML = '<div class="empty">No posts in the last 24 hours.</div>';
@@ -281,6 +332,7 @@
       if (cached && !forceRefresh) {
         const cacheAge = Date.now() - new Date(cached.updated).getTime();
         renderFeed(cached, status, feed);
+        renderAccounts(cached._meta?.accounts || []);
 
         // If cache is fresh enough, don't fetch
         if (cacheAge < CACHE_MAX_AGE) {
@@ -301,6 +353,7 @@
         const data = await res.json();
         setCachedData(data);
         renderFeed(data, status, feed);
+        renderAccounts(data._meta?.accounts || []);
       } catch (err) {
         if (!cached) {
           feed.innerHTML = `<div class="error">Failed to load feed: ${err.message}</div>`;

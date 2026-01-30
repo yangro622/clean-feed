@@ -101,6 +101,7 @@ module.exports = async (req, res) => {
         tweetsFetched: totalTweetsFetched,
         estimatedCost: `$${estimatedCost.toFixed(4)}`,
         accountsProcessed: accounts.length,
+        accounts: accounts,
       }
     });
   } catch (err) {
