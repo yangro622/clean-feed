@@ -18,30 +18,32 @@ vercel           # Deploy to Vercel
 
 ## Architecture
 
-This is a minimal Twitter/X feed reader using the Twitter API v2.
+This is a minimal Twitter/X feed reader using twitterapi.io.
 
 **Backend** (`api/feed.js`): Vercel serverless function that:
 - Reads Twitter handles from `TWITTER_ACCOUNTS` env var (or `accounts.json` locally)
-- Uses Twitter API v2 with Bearer Token auth
-- Filters posts to last 24 hours, returns sorted by newest first
+- Uses twitterapi.io API ($0.15/1k tweets) with built-in cost controls (max $1/request)
+- Filters posts to last 7 days, returns sorted by newest first
+- Skips retweets (only original posts)
 - Caches responses for 5 minutes (`s-maxage=300`)
 
 **Frontend** (`public/index.html`): Single-page vanilla HTML/CSS/JS that calls `/api/feed` and renders posts.
 
 **Configuration**:
 - `accounts.json`: Array of Twitter usernames (local dev only, gitignored)
-- `.env`: Contains `TWITTER_BEARER_TOKEN` (gitignored)
+- `.env`: Contains `TWITTERAPI_IO_KEY` (gitignored)
 - `vercel.json`: Routes `/api/*` to serverless functions, everything else to `public/`
 
 ## Key Design Decisions
 
 - No database—fetches fresh on each load
 - No auth—personal use only
-- No infinite scroll—renders all posts from last 24 hours at once
-- Twitter API v2 for reliable access
+- No infinite scroll—renders all posts from last 7 days at once
+- twitterapi.io for reliable access (switched from Twitter API v2 due to cost/access issues)
 
 ## Security
 
 - **Never paste secrets (API tokens, keys) in chat** - instead, provide commands for the user to run themselves
-- `.env` and `accounts.json` are gitignored to keep tokens and follow lists private
+- `.env` and `accounts.json` are gitignored to keep secrets and follow lists private
+- Required secret: `TWITTERAPI_IO_KEY` (twitterapi.io API key)
 - On Vercel, use environment variables (stored encrypted)
