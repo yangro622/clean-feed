@@ -101,6 +101,16 @@
       text-decoration: underline;
     }
 
+    .post-images {
+      margin-top: 12px;
+    }
+
+    .post-image {
+      max-width: 100%;
+      border-radius: 12px;
+      margin-top: 8px;
+    }
+
     .empty {
       text-align: center;
       padding: 60px 20px;
@@ -156,22 +166,66 @@
       return `${days}d`;
     }
 
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatText(text, urlMap = {}) {
+      // Escape HTML first (prevent XSS)
+      let formatted = escapeHtml(text);
+
+      // Expand t.co URLs to real URLs and make clickable
+      formatted = formatted.replace(
+        /(https?:\/\/[^\s<]+)/g,
+        (match) => {
+          const realUrl = urlMap[match] || match;
+          // Show shortened display URL
+          const displayUrl = realUrl.replace(/^https?:\/\//, '').substring(0, 40);
+          return `<a href="${realUrl}" target="_blank">${displayUrl}${realUrl.length > 47 ? '...' : ''}</a>`;
+        }
+      );
+
+      // Convert @mentions to profile links
+      formatted = formatted.replace(
+        /@(\w+)/g,
+        '<a href="https://x.com/$1" target="_blank">@$1</a>'
+      );
+
+      // Convert #hashtags to search links
+      formatted = formatted.replace(
+        /#(\w+)/g,
+        '<a href="https://x.com/search?q=%23$1" target="_blank">#$1</a>'
+      );
+
+      // Convert newlines to <br>
+      formatted = formatted.replace(/\n/g, '<br>');
+
+      return formatted;
+    }
+
     function renderPost(post) {
       const time = timeAgo(new Date(post.date));
+      const images = (post.images || []).map(url =>
+        `<img class="post-image" src="${url}" alt="" loading="lazy">`
+      ).join('');
+
       return `
         <article class="post">
           <div class="post-header">
-            <a class="username" href="https://twitter.com/${post.username}" target="_blank">@${post.username}</a>
+            <a class="username" href="https://x.com/${post.username}" target="_blank">@${post.username}</a>
             <span class="time">${time}</span>
           </div>
-          <div class="post-content">${post.text}</div>
+          <div class="post-content">${formatText(post.text, post.urlMap || {})}</div>
+          ${images ? `<div class="post-images">${images}</div>` : ''}
           <a class="post-link" href="${post.link}" target="_blank">View on X</a>
         </article>
       `;
     }
 
     const CACHE_KEY = 'cleanfeed_cache';
-    const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+    const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
     function getCachedData() {
       try {
@@ -191,23 +245,23 @@
       }
     }
 
-    function formatLastUpdated(date) {
-      const hours = Math.floor((Date.now() - date) / (1000 * 60 * 60));
-      if (hours < 1) return 'Updated just now';
-      if (hours === 1) return 'Updated 1 hour ago';
-      if (hours < 24) return `Updated ${hours} hours ago`;
-      const days = Math.floor(hours / 24);
-      return `Updated ${days} day${days > 1 ? 's' : ''} ago`;
+    function formatFetchTime(date) {
+      return date.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+      });
     }
 
     function renderFeed(data, status, feed) {
       if (data.posts.length === 0) {
-        feed.innerHTML = '<div class="empty">No posts in the last 24 hours.</div>';
+        feed.innerHTML = '<div class="empty">No posts in the last 7 days.</div>';
       } else {
         feed.innerHTML = data.posts.map(renderPost).join('');
       }
       const updated = new Date(data.updated);
-      status.textContent = `${data.count} posts · ${formatLastUpdated(updated)}`;
+      status.textContent = `${data.count} posts · Fetched ${formatFetchTime(updated)}`;
     }
 
     async function loadFeed(forceRefresh = false) {
@@ -246,7 +300,7 @@
           status.textContent = 'Error loading feed';
         } else {
           // Keep showing cached data on error
-          status.textContent = `${cached.count} posts · ${formatLastUpdated(new Date(cached.updated))} (refresh failed)`;
+          status.textContent = `${cached.count} posts · Fetched ${formatFetchTime(new Date(cached.updated))} (refresh failed)`;
         }
       } finally {
         refreshBtn.disabled = false;

@@ -60,11 +60,25 @@ module.exports = async (req, res) => {
 
           const date = new Date(tweet.createdAt);
           if (date > oneWeekAgo) {
+            // Extract media URLs
+            const media = tweet.extendedEntities?.media || tweet.entities?.media || [];
+            const images = media
+              .filter(m => m.type === 'photo')
+              .map(m => m.media_url_https);
+
+            // Extract URL mappings (t.co -> real URL)
+            const urlMap = {};
+            (tweet.entities?.urls || []).forEach(u => {
+              urlMap[u.url] = u.expanded_url || u.url;
+            });
+
             allPosts.push({
               username: tweet.author?.userName || username,
               text: tweet.text,
               date,
               link: tweet.url || `https://x.com/${username}/status/${tweet.id}`,
+              images,
+              urlMap,
             });
           }
         }
