@@ -225,7 +225,7 @@
     }
 
     const CACHE_KEY = 'cleanfeed_cache';
-    const CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
+    const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
     function getCachedData() {
       try {
@@ -256,7 +256,7 @@
 
     function renderFeed(data, status, feed) {
       if (data.posts.length === 0) {
-        feed.innerHTML = '<div class="empty">No posts in the last 7 days.</div>';
+        feed.innerHTML = '<div class="empty">No posts in the last 24 hours.</div>';
       } else {
         feed.innerHTML = data.posts.map(renderPost).join('');
       }

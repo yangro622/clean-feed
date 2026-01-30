@@ -17,7 +17,7 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: 'TWITTERAPI_IO_KEY not configured' });
   }
 
-  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   try {
     const allPosts = [];
@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
           if (tweet.text?.startsWith('RT @')) continue;
 
           const date = new Date(tweet.createdAt);
-          if (date > oneWeekAgo) {
+          if (date > oneDayAgo) {
             // Extract media URLs
             const media = tweet.extendedEntities?.media || tweet.entities?.media || [];
             const images = media
