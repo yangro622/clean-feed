@@ -1,61 +1,71 @@
-const { TwitterApi } = require('twitter-api-v2');
-
 // Accounts from environment variable (comma-separated) or fallback to file
 const accounts = process.env.TWITTER_ACCOUNTS
   ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
   : require('../accounts.json');
 
+// Cost control settings
+const COST_PER_1000_TWEETS = 0.15; // $0.15 per 1,000 tweets
+const MAX_COST_PER_REQUEST = 1.00; // $1.00 max per request
+const MAX_TWEETS_PER_REQUEST = Math.floor((MAX_COST_PER_REQUEST / COST_PER_1000_TWEETS) * 1000); // ~6,666 tweets
+
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=300');
 
-  const bearerToken = process.env.TWITTER_BEARER_TOKEN;
-  if (!bearerToken) {
-    return res.status(500).json({ error: 'TWITTER_BEARER_TOKEN not configured' });
+  const apiKey = process.env.TWITTERAPI_IO_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'TWITTERAPI_IO_KEY not configured' });
   }
 
-  const client = new TwitterApi(bearerToken);
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
   try {
     const allPosts = [];
+    let totalTweetsFetched = 0;
 
-    // Batch lookup: get all user IDs in one API call (saves 19 calls)
-    const usersResponse = await client.v2.usersByUsernames(accounts);
-    const usernameToId = {};
-    if (usersResponse.data) {
-      for (const user of usersResponse.data) {
-        usernameToId[user.username.toLowerCase()] = user.id;
-      }
-    }
-
-    // Fetch timelines for each user
+    // Fetch tweets for each account
     for (const username of accounts) {
+      // Cost safety check
+      if (totalTweetsFetched >= MAX_TWEETS_PER_REQUEST) {
+        console.warn(`Cost limit reached: ${totalTweetsFetched} tweets fetched, stopping`);
+        break;
+      }
+
       try {
-        const userId = usernameToId[username.toLowerCase()];
-        if (!userId) {
-          console.error(`User not found: @${username}`);
+        const response = await fetch(
+          `https://api.twitterapi.io/twitter/user/last_tweets?userName=${encodeURIComponent(username)}`,
+          {
+            headers: { 'X-API-Key': apiKey }
+          }
+        );
+
+        if (!response.ok) {
+          console.error(`API error for @${username}: ${response.status}`);
           continue;
         }
 
-        // Get recent tweets
-        const tweets = await client.v2.userTimeline(userId, {
-          max_results: 20,
-          'tweet.fields': ['created_at', 'text'],
-          exclude: ['retweets', 'replies'],
-        });
+        const data = await response.json();
 
-        if (tweets.data?.data) {
-          for (const tweet of tweets.data.data) {
-            const date = new Date(tweet.created_at);
-            if (date > oneDayAgo) {
-              allPosts.push({
-                username,
-                text: tweet.text,
-                date,
-                link: `https://x.com/${username}/status/${tweet.id}`,
-              });
-            }
+        if (data.status !== 'success' || !data.data?.tweets) {
+          console.error(`No tweets for @${username}`);
+          continue;
+        }
+
+        const tweets = data.data.tweets;
+        totalTweetsFetched += tweets.length;
+
+        for (const tweet of tweets) {
+          // Skip retweets (they start with "RT @")
+          if (tweet.text?.startsWith('RT @')) continue;
+
+          const date = new Date(tweet.createdAt);
+          if (date > oneWeekAgo) {
+            allPosts.push({
+              username: tweet.author?.userName || username,
+              text: tweet.text,
+              date,
+              link: tweet.url || `https://x.com/${username}/status/${tweet.id}`,
+            });
           }
         }
       } catch (err) {
@@ -66,10 +76,18 @@ module.exports = async (req, res) => {
     // Sort by date, newest first
     allPosts.sort((a, b) => b.date - a.date);
 
+    // Calculate estimated cost
+    const estimatedCost = (totalTweetsFetched / 1000) * COST_PER_1000_TWEETS;
+
     res.json({
       updated: new Date().toISOString(),
       count: allPosts.length,
       posts: allPosts,
+      _meta: {
+        tweetsFetched: totalTweetsFetched,
+        estimatedCost: `$${estimatedCost.toFixed(4)}`,
+        accountsProcessed: accounts.length,
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
