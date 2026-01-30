@@ -2,6 +2,9 @@
   "name": "clean-feed",
   "version": "1.0.0",
   "description": "Minimal personal Twitter feed reader",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "node dev-server.js",
     "dev:vercel": "vercel dev"
