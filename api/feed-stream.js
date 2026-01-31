@@ -1,10 +1,15 @@
 // Accounts from environment variable (comma-separated) or fallback to file
-// Use TEST_MODE=1 to test with a single account
+// Use TEST_MODE=1 to test with a single account and limited tweets
 const accounts = process.env.TEST_MODE
   ? ['elonmusk']
   : process.env.TWITTER_ACCOUNTS
     ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
     : require('../accounts.json');
+
+// In test mode, limit tweets per account (API always returns 20, so we slice client-side)
+const TEST_TWEET_LIMIT = process.env.TEST_MODE ? 5 : Infinity;
+
+const COST_PER_1000_TWEETS = 0.15;
 
 module.exports = async (req, res) => {
   // Set up Server-Sent Events
@@ -52,7 +57,7 @@ module.exports = async (req, res) => {
         continue;
       }
 
-      const tweets = data.data.tweets;
+      const tweets = data.data.tweets.slice(0, TEST_TWEET_LIMIT);
       totalTweetsFetched += tweets.length;
 
       const newPosts = [];
@@ -100,10 +105,12 @@ module.exports = async (req, res) => {
   }
 
   // Send completion (posts kept in fetch order: by account, oldest-to-newest within)
+  const estimatedCost = `$${((totalTweetsFetched / 1000) * COST_PER_1000_TWEETS).toFixed(4)}`;
   res.write(`data: ${JSON.stringify({
     type: 'complete',
     count: allPosts.length,
     tweetsFetched: totalTweetsFetched,
+    estimatedCost,
     accounts
   })}\n\n`);
 

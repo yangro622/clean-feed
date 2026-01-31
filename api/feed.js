@@ -1,10 +1,13 @@
 // Accounts from environment variable (comma-separated) or fallback to file
-// Use TEST_MODE=1 to test with a single account
+// Use TEST_MODE=1 to test with a single account and limited tweets
 const accounts = process.env.TEST_MODE
   ? ['elonmusk']
   : process.env.TWITTER_ACCOUNTS
     ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
     : require('../accounts.json');
+
+// In test mode, limit tweets per account (API always returns 20, so we slice client-side)
+const TEST_TWEET_LIMIT = process.env.TEST_MODE ? 5 : Infinity;
 
 // Cost control settings
 const COST_PER_1000_TWEETS = 0.15; // $0.15 per 1,000 tweets
@@ -56,7 +59,7 @@ module.exports = async (req, res) => {
           continue;
         }
 
-        const tweets = data.data.tweets;
+        const tweets = data.data.tweets.slice(0, TEST_TWEET_LIMIT);
         totalTweetsFetched += tweets.length;
 
         for (const tweet of tweets) {
