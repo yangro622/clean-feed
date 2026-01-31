@@ -246,6 +246,25 @@
     .following-section li a:hover {
       text-decoration: underline;
     }
+
+    .dev-stats {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid #2f3336;
+      font-size: 12px;
+      color: #71767b;
+      text-align: center;
+    }
+
+    .dev-stats a {
+      color: #71767b;
+      text-decoration: none;
+    }
+
+    .dev-stats a:hover {
+      text-decoration: underline;
+      color: #1d9bf0;
+    }
   </style>
 </head>
 <body>
@@ -265,6 +284,8 @@
     <h2>Following</h2>
     <ul id="accounts-list"></ul>
   </footer>
+
+  <div id="dev-stats" class="dev-stats"></div>
 
   <script>
     function timeAgo(date) {
@@ -393,7 +414,25 @@
       ).join('');
     }
 
-    function renderFeed(data, status, feed) {
+    function renderDevStats(meta, cacheSource = 'fresh') {
+      const stats = document.getElementById('dev-stats');
+      const tweets = meta?.tweetsFetched || 0;
+      // CDN cache hit = no API cost; otherwise show actual cost
+      const cost = cacheSource === 'cdn' ? '$0.0000' : (meta?.estimatedCost || '$0.0000');
+      stats.innerHTML = `<a href="/api/feed" target="_blank">${tweets} tweets · ${cost} · ${cacheSource}</a>`;
+
+      // Fetch and display balance
+      fetch('/api/balance')
+        .then(r => r.json())
+        .then(data => {
+          if (data.balance) {
+            stats.innerHTML = `<a href="/api/feed" target="_blank">${tweets} tweets · ${cost} · ${cacheSource} · Balance: ${data.balance}</a>`;
+          }
+        })
+        .catch(() => {}); // Silently fail
+    }
+
+    function renderFeed(data, status, feed, cacheSource = 'fresh') {
       if (data.posts.length === 0) {
         feed.innerHTML = '<div class="empty">No posts from the last 24 hours.</div>';
       } else {
@@ -401,33 +440,56 @@
       }
       const updated = new Date(data.updated);
       status.textContent = `${data.count} posts from last 24h · Updated ${formatFetchTime(updated)}`;
+      renderDevStats(data._meta, cacheSource);
     }
 
     async function loadFeed(forceRefresh = false) {
       const feed = document.getElementById('feed');
       const status = document.getElementById('status');
       const refreshBtn = document.getElementById('refresh');
-
-      // Check cache first (unless force refresh)
       const cached = getCachedData();
-      if (cached && !forceRefresh) {
-        const cacheAge = Date.now() - new Date(cached.updated).getTime();
-        renderFeed(cached, status, feed);
-        renderAccounts(cached._meta?.accounts || []);
 
-        // If cache is fresh enough, don't fetch
-        if (cacheAge < CACHE_MAX_AGE) {
-          return;
-        }
-        // Cache is stale, fetch in background
-        status.textContent += ' (refreshing...)';
+      // Force refresh = use streaming API for live progress
+      if (forceRefresh) {
+        feed.innerHTML = '<div class="loading">Fetching posts...</div>';
+        refreshBtn.disabled = true;
+        loadFeedStreaming(feed, status, refreshBtn, cached);
+        return;
+      }
+
+      // Normal load: try server-side cached response first
+      // Check localStorage cache while we fetch
+      if (cached) {
+        renderFeed(cached, status, feed, 'local');
+        renderAccounts(cached._meta?.accounts || []);
       } else {
         feed.innerHTML = '<div class="loading">Fetching posts...</div>';
       }
 
       refreshBtn.disabled = true;
 
-      // Use streaming API
+      try {
+        const response = await fetch('/api/feed');
+        const cacheStatus = response.headers.get('x-vercel-cache');
+        const data = await response.json();
+
+        // Determine cache source for display
+        const cacheSource = cacheStatus === 'HIT' ? 'cdn' : 'fresh';
+
+        renderFeed(data, status, feed, cacheSource);
+        renderAccounts(data._meta?.accounts || []);
+        setCachedData(data);
+      } catch (err) {
+        if (!cached) {
+          feed.innerHTML = `<div class="error">Failed to load feed: ${err.message}</div>`;
+          status.textContent = 'Error loading feed';
+        }
+      }
+
+      refreshBtn.disabled = false;
+    }
+
+    function loadFeedStreaming(feed, status, refreshBtn, cached) {
       const allPosts = [];
       let accounts = [];
 
@@ -449,21 +511,22 @@
           }
 
           if (data.type === 'posts') {
-            // Add new posts in fetch order (sorted oldest-to-newest within account)
             allPosts.push(...data.posts);
             feed.innerHTML = allPosts.map(renderPost).join('');
           }
 
           if (data.type === 'complete') {
             eventSource.close();
+            const meta = { accounts, tweetsFetched: data.tweetsFetched, estimatedCost: data.estimatedCost };
             const cacheData = {
               updated: new Date().toISOString(),
               count: data.count,
               posts: allPosts,
-              _meta: { accounts, tweetsFetched: data.tweetsFetched }
+              _meta: meta
             };
             setCachedData(cacheData);
             status.textContent = `${data.count} posts from last 24h · Updated ${formatFetchTime(new Date())}`;
+            renderDevStats(meta, 'fresh');
             refreshBtn.disabled = false;
 
             if (allPosts.length === 0) {
@@ -481,7 +544,7 @@
           eventSource.close();
           if (allPosts.length === 0) {
             if (cached) {
-              renderFeed(cached, status, feed);
+              renderFeed(cached, status, feed, 'local');
               status.textContent = `${cached.count} posts from last 24h · Updated ${formatFetchTime(new Date(cached.updated))} (refresh failed)`;
             } else {
               feed.innerHTML = '<div class="error">Failed to load feed</div>';

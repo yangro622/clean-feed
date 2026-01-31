@@ -6,6 +6,8 @@ const accounts = process.env.TEST_MODE
     ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
     : require('../accounts.json');
 
+const COST_PER_1000_TWEETS = 0.15;
+
 module.exports = async (req, res) => {
   // Set up Server-Sent Events
   res.setHeader('Content-Type', 'text/event-stream');
@@ -100,10 +102,12 @@ module.exports = async (req, res) => {
   }
 
   // Send completion (posts kept in fetch order: by account, oldest-to-newest within)
+  const estimatedCost = `$${((totalTweetsFetched / 1000) * COST_PER_1000_TWEETS).toFixed(4)}`;
   res.write(`data: ${JSON.stringify({
     type: 'complete',
     count: allPosts.length,
     tweetsFetched: totalTweetsFetched,
+    estimatedCost,
     accounts
   })}\n\n`);
 

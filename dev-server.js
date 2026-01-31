@@ -16,6 +16,7 @@ if (fs.existsSync(envPath)) {
 
 const feedHandler = require('./api/feed.js');
 const feedStreamHandler = require('./api/feed-stream.js');
+const balanceHandler = require('./api/balance.js');
 
 const BASE_PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
@@ -36,6 +37,26 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       console.error('Stream error:', err);
       res.end();
+    }
+    return;
+  }
+
+  // Balance API route
+  if (req.url === '/api/balance') {
+    res.status = (code) => {
+      res.statusCode = code;
+      return res;
+    };
+    res.json = (data) => {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(data));
+    };
+
+    try {
+      await balanceHandler(req, res);
+    } catch (err) {
+      console.error('Balance API error:', err);
+      res.status(500).json({ error: err.message });
     }
     return;
   }
