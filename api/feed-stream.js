@@ -6,9 +6,6 @@ const accounts = process.env.TEST_MODE
     ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
     : require('../accounts.json');
 
-// Rate limit: free tier = 1 request per 5 seconds
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
 module.exports = async (req, res) => {
   // Set up Server-Sent Events
   res.setHeader('Content-Type', 'text/event-stream');
@@ -33,9 +30,6 @@ module.exports = async (req, res) => {
 
   for (let i = 0; i < accounts.length; i++) {
     const username = accounts[i];
-
-    // Rate limit: wait 5s between requests (skip for first)
-    if (i > 0) await sleep(5000);
 
     // Send progress update
     res.write(`data: ${JSON.stringify({ type: 'progress', current: i + 1, total: accounts.length, username })}\n\n`);
