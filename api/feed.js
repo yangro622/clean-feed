@@ -1,11 +1,5 @@
 // Accounts to follow (edit accounts.json to customize)
-// Use TEST_MODE=1 to test with a single account and limited tweets
-const accounts = process.env.TEST_MODE
-  ? ['elonmusk']
-  : require('../accounts.json');
-
-// In test mode, limit tweets per account (API always returns 20, so we slice client-side)
-const TEST_TWEET_LIMIT = process.env.TEST_MODE ? 5 : Infinity;
+const accounts = require('../accounts.json');
 
 // Cost control settings
 const COST_PER_1000_TWEETS = 0.15; // $0.15 per 1,000 tweets
@@ -13,10 +7,25 @@ const MAX_COST_PER_REQUEST = 1.00; // $1.00 max per request
 const MAX_TWEETS_PER_REQUEST = Math.floor((MAX_COST_PER_REQUEST / COST_PER_1000_TWEETS) * 1000); // ~6,666 tweets
 
 module.exports = async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
+  // TEST_MODE: return mock data without calling the real API
+  if (process.env.TEST_MODE) {
+    console.log('[feed] TEST_MODE: returning mock data');
+    const mockData = require('../mocks/feed.json');
+    // Update timestamps to be relative to now (so posts appear as "recent")
+    const now = new Date();
+    mockData.updated = now.toISOString();
+    mockData.posts = mockData.posts.map((post, i) => ({
+      ...post,
+      date: new Date(now - i * 30 * 60 * 1000).toISOString() // 30 min apart
+    }));
+    return res.json(mockData);
+  }
+
   const startTime = Date.now();
   console.log(`[feed] START accounts=${accounts.length}`);
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=86400'); // 24 hour CDN cache
 
   const apiKey = process.env.TWITTERAPI_IO_KEY;
@@ -64,7 +73,7 @@ module.exports = async (req, res) => {
           continue;
         }
 
-        const tweets = data.data.tweets.slice(0, TEST_TWEET_LIMIT);
+        const tweets = data.data.tweets;
         totalTweetsFetched += tweets.length;
         fetchResults.push({ username, tweets: tweets.length, status: 'ok' });
 

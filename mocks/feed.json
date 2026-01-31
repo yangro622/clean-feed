@@ -1,0 +1,96 @@
+{
+  "updated": "2024-01-15T12:00:00.000Z",
+  "count": 8,
+  "posts": [
+    {
+      "username": "mock_text",
+      "text": "This is a simple text-only post. No links, no media, just plain text.\n\nWith multiple paragraphs.",
+      "date": "2024-01-15T11:30:00.000Z",
+      "link": "https://x.com/mock_text/status/1001",
+      "images": [],
+      "urlMap": {},
+      "quotedTweet": null
+    },
+    {
+      "username": "mock_image",
+      "text": "Check out this amazing photo!",
+      "date": "2024-01-15T10:45:00.000Z",
+      "link": "https://x.com/mock_image/status/1002",
+      "images": [
+        "https://pbs.twimg.com/media/example1.jpg"
+      ],
+      "urlMap": {},
+      "quotedTweet": null
+    },
+    {
+      "username": "mock_gallery",
+      "text": "Here's a gallery of multiple images",
+      "date": "2024-01-15T10:30:00.000Z",
+      "link": "https://x.com/mock_gallery/status/1003",
+      "images": [
+        "https://pbs.twimg.com/media/gallery1.jpg",
+        "https://pbs.twimg.com/media/gallery2.jpg",
+        "https://pbs.twimg.com/media/gallery3.jpg"
+      ],
+      "urlMap": {},
+      "quotedTweet": null
+    },
+    {
+      "username": "mock_link",
+      "text": "Great article on web development: https://t.co/abc123",
+      "date": "2024-01-15T10:00:00.000Z",
+      "link": "https://x.com/mock_link/status/1004",
+      "images": [],
+      "urlMap": {
+        "https://t.co/abc123": "https://example.com/article/web-development-best-practices-2024"
+      },
+      "quotedTweet": null
+    },
+    {
+      "username": "mock_quote",
+      "text": "This is so true!",
+      "date": "2024-01-15T09:30:00.000Z",
+      "link": "https://x.com/mock_quote/status/1005",
+      "images": [],
+      "urlMap": {},
+      "quotedTweet": {
+        "username": "original_author",
+        "text": "The best code is the code you don't have to write. Simplicity wins every time.",
+        "link": "https://x.com/original_author/status/999"
+      }
+    },
+    {
+      "username": "mock_mentions",
+      "text": "Hey @friend1 and @friend2, check this out! #coding #webdev",
+      "date": "2024-01-15T09:00:00.000Z",
+      "link": "https://x.com/mock_mentions/status/1006",
+      "images": [],
+      "urlMap": {},
+      "quotedTweet": null
+    },
+    {
+      "username": "mock_video",
+      "text": "Here's a video demo (video won't play in mock, just testing the format)",
+      "date": "2024-01-15T08:30:00.000Z",
+      "link": "https://x.com/mock_video/status/1007",
+      "images": [],
+      "urlMap": {},
+      "quotedTweet": null
+    },
+    {
+      "username": "mock_long",
+      "text": "This is a longer post to test text wrapping and display. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n\nUt enim ad minim veniam, quis nostrud exercitation ullamco laboris.\n\nDuis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.",
+      "date": "2024-01-15T08:00:00.000Z",
+      "link": "https://x.com/mock_long/status/1008",
+      "images": [],
+      "urlMap": {},
+      "quotedTweet": null
+    }
+  ],
+  "_meta": {
+    "tweetsFetched": 8,
+    "estimatedCost": "$0.0000",
+    "accountsProcessed": 8,
+    "accounts": ["mock_text", "mock_image", "mock_gallery", "mock_link", "mock_quote", "mock_mentions", "mock_video", "mock_long"]
+  }
+}
