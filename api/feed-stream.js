@@ -12,6 +12,9 @@ const TEST_TWEET_LIMIT = process.env.TEST_MODE ? 5 : Infinity;
 const COST_PER_1000_TWEETS = 0.15;
 
 module.exports = async (req, res) => {
+  const startTime = Date.now();
+  console.log(`[stream] START accounts=${accounts.length}`);
+
   // Set up Server-Sent Events
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -20,6 +23,7 @@ module.exports = async (req, res) => {
 
   const apiKey = process.env.TWITTERAPI_IO_KEY;
   if (!apiKey) {
+    console.log(`[stream] ERROR no_api_key`);
     res.write(`data: ${JSON.stringify({ type: 'error', message: 'API key not configured' })}\n\n`);
     res.end();
     return;
@@ -32,6 +36,7 @@ module.exports = async (req, res) => {
 
   const allPosts = [];
   let totalTweetsFetched = 0;
+  let successCount = 0;
 
   for (let i = 0; i < accounts.length; i++) {
     const username = accounts[i];
@@ -46,19 +51,20 @@ module.exports = async (req, res) => {
       );
 
       if (!response.ok) {
-        console.error(`API error for @${username}: ${response.status}`);
+        console.error(`[stream] FETCH_ERROR @${username} status=${response.status}`);
         continue;
       }
 
       const data = await response.json();
 
       if (data.status !== 'success' || !data.data?.tweets) {
-        console.error(`No tweets for @${username}`);
+        console.error(`[stream] NO_TWEETS @${username}`);
         continue;
       }
 
       const tweets = data.data.tweets.slice(0, TEST_TWEET_LIMIT);
       totalTweetsFetched += tweets.length;
+      successCount++;
 
       const newPosts = [];
       for (const tweet of tweets) {
@@ -100,12 +106,15 @@ module.exports = async (req, res) => {
       }
 
     } catch (err) {
-      console.error(`Failed to fetch @${username}:`, err.message);
+      console.error(`[stream] NETWORK_ERROR @${username} error=${err.message}`);
     }
   }
 
   // Send completion (posts kept in fetch order: by account, oldest-to-newest within)
   const estimatedCost = `$${((totalTweetsFetched / 1000) * COST_PER_1000_TWEETS).toFixed(4)}`;
+  const duration = Date.now() - startTime;
+  console.log(`[stream] DONE tweets=${totalTweetsFetched} posts=${allPosts.length} cost=${estimatedCost} accounts=${successCount}/${accounts.length} duration=${duration}ms`);
+
   res.write(`data: ${JSON.stringify({
     type: 'complete',
     count: allPosts.length,

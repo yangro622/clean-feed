@@ -15,11 +15,15 @@ const MAX_COST_PER_REQUEST = 1.00; // $1.00 max per request
 const MAX_TWEETS_PER_REQUEST = Math.floor((MAX_COST_PER_REQUEST / COST_PER_1000_TWEETS) * 1000); // ~6,666 tweets
 
 module.exports = async (req, res) => {
+  const startTime = Date.now();
+  console.log(`[feed] START accounts=${accounts.length}`);
+
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Cache-Control', 's-maxage=86400'); // 24 hour CDN cache
 
   const apiKey = process.env.TWITTERAPI_IO_KEY;
   if (!apiKey) {
+    console.log(`[feed] ERROR no_api_key`);
     return res.status(500).json({ error: 'TWITTERAPI_IO_KEY not configured' });
   }
 
@@ -28,6 +32,7 @@ module.exports = async (req, res) => {
   try {
     const allPosts = [];
     let totalTweetsFetched = 0;
+    const fetchResults = []; // Track per-account results
 
     // Fetch tweets for each account
     for (let i = 0; i < accounts.length; i++) {
@@ -48,19 +53,22 @@ module.exports = async (req, res) => {
         );
 
         if (!response.ok) {
-          console.error(`API error for @${username}: ${response.status}`);
+          console.error(`[feed] FETCH_ERROR @${username} status=${response.status}`);
+          fetchResults.push({ username, tweets: 0, status: `err_${response.status}` });
           continue;
         }
 
         const data = await response.json();
 
         if (data.status !== 'success' || !data.data?.tweets) {
-          console.error(`No tweets for @${username}`);
+          console.error(`[feed] NO_TWEETS @${username}`);
+          fetchResults.push({ username, tweets: 0, status: 'no_tweets' });
           continue;
         }
 
         const tweets = data.data.tweets.slice(0, TEST_TWEET_LIMIT);
         totalTweetsFetched += tweets.length;
+        fetchResults.push({ username, tweets: tweets.length, status: 'ok' });
 
         for (const tweet of tweets) {
           // Skip retweets (they start with "RT @")
@@ -96,7 +104,8 @@ module.exports = async (req, res) => {
           }
         }
       } catch (err) {
-        console.error(`Failed to fetch @${username}:`, err.message);
+        console.error(`[feed] NETWORK_ERROR @${username} error=${err.message}`);
+        fetchResults.push({ username, tweets: 0, status: 'network_err' });
       }
     }
 
@@ -105,6 +114,10 @@ module.exports = async (req, res) => {
 
     // Calculate estimated cost
     const estimatedCost = (totalTweetsFetched / 1000) * COST_PER_1000_TWEETS;
+
+    const duration = Date.now() - startTime;
+    const successCount = fetchResults.filter(r => r.status === 'ok').length;
+    console.log(`[feed] DONE tweets=${totalTweetsFetched} posts=${allPosts.length} cost=$${estimatedCost.toFixed(4)} accounts=${successCount}/${accounts.length} duration=${duration}ms`);
 
     res.json({
       updated: new Date().toISOString(),
@@ -118,6 +131,7 @@ module.exports = async (req, res) => {
       }
     });
   } catch (err) {
+    console.error(`[feed] FATAL error=${err.message}`);
     res.status(500).json({ error: err.message });
   }
 };
