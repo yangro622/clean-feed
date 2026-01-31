@@ -22,16 +22,16 @@ vercel           # Deploy to Vercel
 This is a minimal Twitter/X feed reader using twitterapi.io.
 
 **Backend** (`api/feed.js`): Vercel serverless function that:
-- Reads Twitter handles from `TWITTER_ACCOUNTS` env var (or `accounts.json` locally)
+- Reads Twitter handles from `accounts.json`
 - Uses twitterapi.io API ($0.15/1k tweets) with built-in cost controls (max $1/request)
-- Filters posts to last 7 days, returns sorted by newest first
+- Filters posts to last 24 hours, returns sorted by newest first
 - Skips retweets (only original posts)
-- Caches responses for 5 minutes (`s-maxage=300`)
+- Caches responses for 24 hours (`s-maxage=86400`)
 
 **Frontend** (`public/index.html`): Single-page vanilla HTML/CSS/JS that calls `/api/feed` and renders posts.
 
 **Configuration**:
-- `accounts.json`: Array of Twitter usernames (local dev only, gitignored)
+- `accounts.json`: Array of Twitter usernames to follow
 - `.env`: Contains `TWITTERAPI_IO_KEY` (gitignored)
 - `vercel.json`: Routes `/api/*` to serverless functions, everything else to `public/`
 
@@ -45,9 +45,9 @@ This is a minimal Twitter/X feed reader using twitterapi.io.
 ## Security
 
 - **Never paste secrets (API tokens, keys) in chat** - instead, provide commands for the user to run themselves
-- `.env` and `accounts.json` are gitignored to keep secrets and follow lists private
+- `.env` is gitignored to keep API keys private
 - Required secret: `TWITTERAPI_IO_KEY` (twitterapi.io API key)
-- On Vercel, use environment variables (stored encrypted)
+- On Vercel, set `TWITTERAPI_IO_KEY` as an environment variable (stored encrypted)
 
 ## Session Workflow
 

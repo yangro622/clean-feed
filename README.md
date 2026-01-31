@@ -105,22 +105,13 @@ vercel
 
 Follow the prompts to link/create a Vercel project.
 
-Then set your environment variables on Vercel:
+Then set your API key on Vercel:
 
 ```bash
-# Set your twitterapi.io API key
 vercel env add TWITTERAPI_IO_KEY
-
-# Set your accounts list (comma-separated, no spaces around commas)
-vercel env add TWITTER_ACCOUNTS
 ```
 
-For `TWITTER_ACCOUNTS`, enter your usernames as a comma-separated list:
-```
-naval,paulg,sama
-```
-
-Deploy again to apply the environment variables:
+Deploy again to apply the environment variable:
 
 ```bash
 vercel --prod
@@ -137,13 +128,12 @@ Your clean feed is now live at your Vercel URL.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `TWITTERAPI_IO_KEY` | Yes | Your twitterapi.io API key |
-| `TWITTER_ACCOUNTS` | Production | Comma-separated list of usernames to follow |
 
 ### Files
 
 | File | Purpose |
 |------|---------|
-| `accounts.json` | Local development: list of accounts to follow |
+| `accounts.json` | List of Twitter usernames to follow |
 | `.env` | Local development: environment variables |
 | `api/feed.js` | Serverless function that fetches tweets |
 | `public/index.html` | Frontend (HTML + CSS + JavaScript in one file) |
@@ -199,7 +189,7 @@ clean-feed/
 │   └── feed.js          # Serverless function (twitterapi.io calls)
 ├── public/
 │   └── index.html       # Frontend (single HTML file)
-├── accounts.json        # Your follow list (local dev, gitignored)
+├── accounts.json        # Your follow list (edit this file)
 ├── accounts.example.json # Template for accounts.json
 ├── .env                 # Your secrets (local dev, gitignored)
 ├── .env.example         # Template for .env
@@ -212,7 +202,7 @@ clean-feed/
 ## Privacy & Security
 
 - Your API key is stored only in `.env` (local) or Vercel's encrypted environment variables (production)
-- Your accounts list stays private (gitignored locally, stored in Vercel env vars for production)
+- Your accounts list is stored in `accounts.json` - fork this repo to keep your list private
 - No analytics, no tracking, no data collection
 - The app runs entirely on your own Vercel instance
 
