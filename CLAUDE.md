@@ -51,29 +51,48 @@ This is a minimal Twitter/X feed reader using twitterapi.io.
 
 ## Session Workflow
 
-Each Claude Code session should follow this workflow for code changes:
+Each Claude Code session should follow this workflow for code changes.
 
-### 1. Start of Session: Identify the Objective
+**IMPORTANT**: Multiple sessions share the same local filesystem. Use git worktrees to isolate each session's work.
 
-- Check `gh issue list` for existing issues
-- If working on an existing issue, confirm which one
-- If new work, create an issue first: `gh issue create`
-- For exploration/discussion only (no code changes), skip this workflow
+### 1. Start of Session: Check Location & Identify Work
 
-### 2. Create a Feature Branch
-
-Before making code changes, create and switch to a feature branch:
+First, check if you're in the main repo or a worktree:
 
 ```bash
-git checkout -b issue-{number}-{short-description}
-# Example: git checkout -b issue-14-quoted-tweets
+git worktree list   # See all worktrees
+pwd                 # Check current directory
 ```
+
+- If in `/Users/robert/projects/clean-feed` (main repo): create a worktree for your issue
+- If already in a worktree (e.g., `/Users/robert/projects/clean-feed-issue-15`): continue working there
+- For exploration/discussion only (no code changes), skip worktree setup
+
+Check for existing issues: `gh issue list`
+
+### 2. Create a Worktree for Your Issue
+
+Before making code changes, create an isolated worktree:
+
+```bash
+# From the main repo directory
+cd /Users/robert/projects/clean-feed
+git worktree add ../clean-feed-issue-{number} -b issue-{number}-{short-description}
+cd ../clean-feed-issue-{number}
+
+# Example:
+git worktree add ../clean-feed-issue-15 -b issue-15-platforms
+cd ../clean-feed-issue-15
+```
+
+This creates a separate directory with its own branch. Other sessions won't interfere.
 
 ### 3. During Work
 
+- Work entirely within your worktree directory
 - Commit incrementally as progress is made
 - Use clear commit messages referencing the issue: "Add quoted tweet rendering (#14)"
-- Test locally: `TEST_MODE=1 npm run dev` (auto-finds available port, uses single account)
+- Test locally: `TEST_MODE=1 npm run dev` (auto-finds available port)
 
 ### 4. End of Session: Confirm Completion
 
@@ -82,17 +101,31 @@ Before merging, **ask the user**:
 
 Only after user confirmation:
 ```bash
+# From your worktree directory
+git push -u origin issue-{number}-{short-description}
+
+# Switch to main repo to merge
+cd /Users/robert/projects/clean-feed
 git checkout main
+git pull
 git merge issue-{number}-{short-description}
 git push
 gh issue close {number} --comment "Resolved in {commit-hash}"
+
+# Clean up worktree and branch
+git worktree remove ../clean-feed-issue-{number}
 git branch -d issue-{number}-{short-description}
 ```
 
 ### Quick Fixes (Escape Hatch)
 
-For trivial changes (typos, one-liners), the user may say "quick fix" to skip branching. Commit directly to main with a clear message.
+For trivial changes (typos, one-liners), the user may say "quick fix" to skip worktree setup. Work directly in main repo on main branch.
 
-### Multiple Sessions
+### Parallel Sessions
 
-Multiple Claude sessions can run in parallel - each on its own branch. The dev server auto-finds available ports, so no manual port configuration needed.
+Multiple Claude sessions can run in parallel - each in its own worktree directory:
+- `/Users/robert/projects/clean-feed` (main repo, for quick fixes)
+- `/Users/robert/projects/clean-feed-issue-15` (session working on issue 15)
+- `/Users/robert/projects/clean-feed-issue-17` (session working on issue 17)
+
+The dev server auto-finds available ports, so multiple sessions can run `npm run dev` simultaneously.
