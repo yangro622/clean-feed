@@ -1,10 +1,8 @@
-// Accounts from environment variable (comma-separated) or fallback to file
+// Accounts to follow (edit accounts.json to customize)
 // Use TEST_MODE=1 to test with a single account and limited tweets
 const accounts = process.env.TEST_MODE
   ? ['elonmusk']
-  : process.env.TWITTER_ACCOUNTS
-    ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
-    : require('../accounts.json');
+  : require('../accounts.json');
 
 // In test mode, limit tweets per account (API always returns 20, so we slice client-side)
 const TEST_TWEET_LIMIT = process.env.TEST_MODE ? 5 : Infinity;
