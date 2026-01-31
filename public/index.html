@@ -218,6 +218,8 @@
     }
 
     .following-section {
+      min-height: 100vh;   /* fallback for older browsers */
+      min-height: 100dvh;  /* dynamic viewport height - mobile friendly */
       margin-top: 40px;
       padding-top: 20px;
       border-top: 1px solid #2f3336;
