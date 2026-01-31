@@ -55,37 +55,35 @@ Each Claude Code session should follow this workflow for code changes.
 
 **IMPORTANT**: Multiple sessions share the same local filesystem. Use git worktrees to isolate each session's work.
 
-### 1. Start of Session: Check Location & Identify Work
+### 1. Start of Session: Set Up Worktree
 
-First, check if you're in the main repo or a worktree:
+Extract your session ID from the scratchpad path and create an isolated worktree:
 
 ```bash
-git worktree list   # See all worktrees
-pwd                 # Check current directory
+# Get session ID (first 8 chars of UUID from scratchpad path)
+# Scratchpad path format: /private/tmp/claude-501/.../SESSION_UUID/scratchpad
+SESSION_ID=$(basename $(dirname $SCRATCHPAD_DIR) | cut -c1-8)
+
+# Check if worktree already exists for this session
+cd /Users/robert/projects/clean-feed
+if git worktree list | grep -q "clean-feed-$SESSION_ID"; then
+  cd ../clean-feed-$SESSION_ID
+else
+  git worktree add ../clean-feed-$SESSION_ID -b session-$SESSION_ID
+  cd ../clean-feed-$SESSION_ID
+fi
 ```
 
-- If in `/Users/robert/projects/clean-feed` (main repo): create a worktree for your issue
-- If already in a worktree (e.g., `/Users/robert/projects/clean-feed-issue-15`): continue working there
-- For exploration/discussion only (no code changes), skip worktree setup
+This creates a directory like `/Users/robert/projects/clean-feed-81a2ef7c/` unique to this session.
+
+For exploration/discussion only (no code changes), skip worktree setup.
+
+### 2. Identify Work
 
 Check for existing issues: `gh issue list`
 
-### 2. Create a Worktree for Your Issue
-
-Before making code changes, create an isolated worktree:
-
-```bash
-# From the main repo directory
-cd /Users/robert/projects/clean-feed
-git worktree add ../clean-feed-issue-{number} -b issue-{number}-{short-description}
-cd ../clean-feed-issue-{number}
-
-# Example:
-git worktree add ../clean-feed-issue-15 -b issue-15-platforms
-cd ../clean-feed-issue-15
-```
-
-This creates a separate directory with its own branch. Other sessions won't interfere.
+- If working on an existing issue, confirm which one
+- If new work, create an issue first: `gh issue create`
 
 ### 3. During Work
 
@@ -101,20 +99,17 @@ Before merging, **ask the user**:
 
 Only after user confirmation:
 ```bash
-# From your worktree directory
-git push -u origin issue-{number}-{short-description}
-
-# Switch to main repo to merge
+# From your worktree directory, merge to main
 cd /Users/robert/projects/clean-feed
 git checkout main
 git pull
-git merge issue-{number}-{short-description}
+git merge session-$SESSION_ID
 git push
 gh issue close {number} --comment "Resolved in {commit-hash}"
 
 # Clean up worktree and branch
-git worktree remove ../clean-feed-issue-{number}
-git branch -d issue-{number}-{short-description}
+git worktree remove ../clean-feed-$SESSION_ID
+git branch -d session-$SESSION_ID
 ```
 
 ### Quick Fixes (Escape Hatch)
@@ -123,9 +118,9 @@ For trivial changes (typos, one-liners), the user may say "quick fix" to skip wo
 
 ### Parallel Sessions
 
-Multiple Claude sessions can run in parallel - each in its own worktree directory:
-- `/Users/robert/projects/clean-feed` (main repo, for quick fixes)
-- `/Users/robert/projects/clean-feed-issue-15` (session working on issue 15)
-- `/Users/robert/projects/clean-feed-issue-17` (session working on issue 17)
+Multiple Claude sessions run in parallel, each in its own worktree:
+- `/Users/robert/projects/clean-feed` (main repo)
+- `/Users/robert/projects/clean-feed-81a2ef7c` (session 81a2ef7c)
+- `/Users/robert/projects/clean-feed-a3b5c7d9` (session a3b5c7d9)
 
 The dev server auto-finds available ports, so multiple sessions can run `npm run dev` simultaneously.
