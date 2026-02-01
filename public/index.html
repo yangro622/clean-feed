@@ -594,33 +594,22 @@
       `;
     }
 
-    const CACHE_KEY = 'cleanfeed_cache';
-    const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
-
-    function getCachedData() {
-      try {
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (!cached) return null;
-        return JSON.parse(cached);
-      } catch {
-        return null;
-      }
-    }
-
-    function setCachedData(data) {
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-      } catch {
-        // localStorage full or unavailable
-      }
-    }
-
+    // ===========================================
+    // UI Helper Functions
+    // ===========================================
     function formatFetchTime(date) {
       return date.toLocaleString(undefined, {
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit'
+      });
+    }
+
+    function formatDateShort(date) {
+      return date.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric'
       });
     }
 
@@ -631,152 +620,210 @@
       ).join('');
     }
 
-    function renderDevStats(meta, cacheSource = 'fresh') {
+    function renderDevStats(meta, source = 'local') {
       const stats = document.getElementById('dev-stats');
       const tweets = meta?.tweetsFetched || 0;
-      // CDN cache hit = no API cost; otherwise show actual cost
-      const cost = cacheSource === 'cdn' ? '$0.0000' : (meta?.estimatedCost || '$0.0000');
-      stats.innerHTML = `<a href="/api/feed" target="_blank">${tweets} tweets · ${cost} · ${cacheSource}</a>`;
+      const cost = meta?.estimatedCost || '$0.0000';
+      stats.innerHTML = `<a href="/api/feed-sync" target="_blank">${tweets} tweets · ${cost} · ${source}</a>`;
 
       // Fetch and display balance
       fetch('/api/balance')
         .then(r => r.json())
         .then(data => {
           if (data.balance) {
-            stats.innerHTML = `<a href="/api/feed" target="_blank">${tweets} tweets · ${cost} · ${cacheSource} · Balance: ${data.balance}</a>`;
+            stats.innerHTML = `<a href="/api/feed-sync" target="_blank">${tweets} tweets · ${cost} · ${source} · Balance: ${data.balance}</a>`;
           }
         })
-        .catch(() => {}); // Silently fail
+        .catch(() => {});
     }
 
-    function renderFeed(data, status, feed, cacheSource = 'fresh') {
-      if (data.posts.length === 0) {
-        feed.innerHTML = '<div class="empty">No posts from the last 24 hours.</div>';
-      } else {
-        feed.innerHTML = data.posts.map(renderPost).join('');
-      }
-      const updated = new Date(data.updated);
-      status.textContent = `${data.count} posts from last 24h · Updated ${formatFetchTime(updated)}`;
-      renderDevStats(data._meta, cacheSource);
+    function updateStatus(message) {
+      document.getElementById('status').textContent = message;
     }
 
-    async function loadFeed(forceRefresh = false) {
-      const feed = document.getElementById('feed');
-      const status = document.getElementById('status');
-      const refreshBtn = document.getElementById('refresh');
-      const cached = getCachedData();
-
-      // Force refresh = use streaming API for live progress
-      if (forceRefresh) {
-        feed.innerHTML = '<div class="loading">Fetching posts...</div>';
-        refreshBtn.disabled = true;
-        loadFeedStreaming(feed, status, refreshBtn, cached);
+    function renderTweets(tweets, feedEl) {
+      if (tweets.length === 0) {
+        feedEl.innerHTML = '<div class="empty">No posts yet. Pull down to refresh.</div>';
         return;
       }
+      feedEl.innerHTML = tweets.map(renderPost).join('');
+    }
 
-      // Normal load: try server-side cached response first
-      // Check localStorage cache while we fetch
-      if (cached) {
-        renderFeed(cached, status, feed, 'local');
-        renderAccounts(cached._meta?.accounts || []);
-      } else {
-        feed.innerHTML = '<div class="loading">Fetching posts...</div>';
+    // ===========================================
+    // Sync Functions (use new /api/feed-sync)
+    // ===========================================
+    async function initialSync(days) {
+      // Fetch last N days of tweets
+      const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      updateStatus(`Loading last ${days} days...`);
+
+      const response = await fetch(`/api/feed-sync?since=${since.toISOString()}`);
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+      const data = await response.json();
+      await storeTweets(data.tweets);
+
+      // Update sync state
+      if (data.tweets.length > 0) {
+        const dates = data.tweets.map(t => new Date(t.date));
+        const newest = new Date(Math.max(...dates));
+        const oldest = new Date(Math.min(...dates));
+        await updateSyncState({
+          newestTimestamp: newest.toISOString(),
+          oldestTimestamp: oldest.toISOString(),
+        });
       }
 
-      refreshBtn.disabled = true;
+      return data;
+    }
+
+    async function loadNewer() {
+      const newestTimestamp = await getNewestTimestamp();
+      if (!newestTimestamp) {
+        // No existing tweets, do initial sync
+        return await initialSync(CONFIG.INITIAL_DAYS);
+      }
+
+      updateStatus('Checking for new posts...');
+      const response = await fetch(`/api/feed-sync?since=${newestTimestamp}`);
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+      const data = await response.json();
+
+      if (data.tweets.length > 0) {
+        await storeTweets(data.tweets);
+
+        // Update newest timestamp
+        const dates = data.tweets.map(t => new Date(t.date));
+        const newest = new Date(Math.max(...dates));
+        await updateSyncState({ newestTimestamp: newest.toISOString() });
+      }
+
+      return data;
+    }
+
+    async function loadOlder() {
+      const oldestTimestamp = await getOldestTimestamp();
+      if (!oldestTimestamp) return { tweets: [], hasMore: false };
+
+      // Check if we've hit the retention limit
+      const oldestDate = new Date(oldestTimestamp);
+      const retentionLimit = new Date(Date.now() - CONFIG.MAX_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+      if (oldestDate <= retentionLimit) {
+        return { tweets: [], hasMore: false, hitLimit: true };
+      }
+
+      // Fetch LOAD_MORE_DAYS worth of older tweets
+      const targetDate = new Date(oldestDate - CONFIG.LOAD_MORE_DAYS * 24 * 60 * 60 * 1000);
+      const boundedDate = targetDate > retentionLimit ? targetDate : retentionLimit;
+
+      updateStatus('Loading older posts...');
+      const response = await fetch(`/api/feed-sync?until=${oldestTimestamp}&since=${boundedDate.toISOString()}`);
+      if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+      const data = await response.json();
+
+      if (data.tweets.length > 0) {
+        await storeTweets(data.tweets);
+
+        // Update oldest timestamp
+        const dates = data.tweets.map(t => new Date(t.date));
+        const oldest = new Date(Math.min(...dates));
+        await updateSyncState({ oldestTimestamp: oldest.toISOString() });
+      }
+
+      return data;
+    }
+
+    // ===========================================
+    // Main Load Function
+    // ===========================================
+    async function loadFeed(forceRefresh = false) {
+      const feed = document.getElementById('feed');
+      const refreshBtn = document.getElementById('refresh');
 
       try {
-        const response = await fetch('/api/feed');
-        const cacheStatus = response.headers.get('x-vercel-cache');
-        const data = await response.json();
+        // Initialize IndexedDB
+        await openDB();
 
-        // Determine cache source for display
-        const cacheSource = cacheStatus === 'HIT' ? 'cdn' : 'fresh';
+        // Migrate from old localStorage cache if present
+        await migrateFromLocalStorage();
 
-        renderFeed(data, status, feed, cacheSource);
-        renderAccounts(data._meta?.accounts || []);
-        setCachedData(data);
+        // Prune old tweets
+        await pruneOldTweets(CONFIG.MAX_RETENTION_DAYS);
+
+        // Check existing tweets
+        const existingTweets = await getAllTweets();
+
+        if (existingTweets.length > 0 && !forceRefresh) {
+          // Show cached tweets immediately
+          renderTweets(existingTweets, feed);
+          updateStatusFromTweets(existingTweets);
+        } else {
+          feed.innerHTML = '<div class="loading">Fetching posts...</div>';
+        }
+
+        refreshBtn.disabled = true;
+
+        let syncResult;
+        if (existingTweets.length === 0) {
+          // First visit: fetch initial days
+          syncResult = await initialSync(CONFIG.INITIAL_DAYS);
+        } else {
+          // Return visit: fetch newer tweets
+          syncResult = await loadNewer();
+        }
+
+        // Render all tweets (now including new ones)
+        const allTweets = await getAllTweets();
+        renderTweets(allTweets, feed);
+        updateStatusFromTweets(allTweets);
+        renderDevStats(syncResult._meta, syncResult.tweets.length > 0 ? 'synced' : 'local');
+
+        // Fetch accounts for sidebar
+        fetchAccountsList();
+
       } catch (err) {
-        if (!cached) {
+        console.error('[loadFeed] Error:', err);
+        const existingTweets = await getAllTweets().catch(() => []);
+        if (existingTweets.length > 0) {
+          renderTweets(existingTweets, feed);
+          updateStatus(`Offline · ${existingTweets.length} cached posts`);
+        } else {
           feed.innerHTML = `<div class="error">Failed to load feed: ${err.message}</div>`;
-          status.textContent = 'Error loading feed';
+          updateStatus('Error loading feed');
         }
       }
 
       refreshBtn.disabled = false;
     }
 
-    function loadFeedStreaming(feed, status, refreshBtn, cached) {
-      const allPosts = [];
-      let accounts = [];
+    function updateStatusFromTweets(tweets) {
+      if (tweets.length === 0) {
+        updateStatus('No posts yet');
+        return;
+      }
+      const newestDate = new Date(tweets[0].date);
+      const oldestDate = new Date(tweets[tweets.length - 1].date);
+      updateStatus(`${tweets.length} posts · ${formatDateShort(oldestDate)} - ${formatDateShort(newestDate)}`);
+    }
 
+    async function fetchAccountsList() {
       try {
-        const eventSource = new EventSource('/api/feed-stream');
-
-        eventSource.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-
-          if (data.type === 'start') {
-            accounts = data.accounts;
-            renderAccounts(accounts);
-            status.textContent = `Loading ${data.total} accounts...`;
-            feed.innerHTML = '';
-          }
-
-          if (data.type === 'progress') {
-            status.textContent = `Fetching @${data.username}... (${data.current}/${data.total})`;
-          }
-
-          if (data.type === 'posts') {
-            allPosts.push(...data.posts);
-            feed.innerHTML = allPosts.map(renderPost).join('');
-          }
-
-          if (data.type === 'complete') {
-            eventSource.close();
-            const meta = { accounts, tweetsFetched: data.tweetsFetched, estimatedCost: data.estimatedCost };
-            const cacheData = {
-              updated: new Date().toISOString(),
-              count: data.count,
-              posts: allPosts,
-              _meta: meta
-            };
-            setCachedData(cacheData);
-            status.textContent = `${data.count} posts from last 24h · Updated ${formatFetchTime(new Date())}`;
-            renderDevStats(meta, 'fresh');
-            refreshBtn.disabled = false;
-
-            if (allPosts.length === 0) {
-              feed.innerHTML = '<div class="empty">No posts from the last 24 hours.</div>';
-            }
-          }
-
-          if (data.type === 'error') {
-            eventSource.close();
-            throw new Error(data.message);
-          }
-        };
-
-        eventSource.onerror = () => {
-          eventSource.close();
-          if (allPosts.length === 0) {
-            if (cached) {
-              renderFeed(cached, status, feed, 'local');
-              status.textContent = `${cached.count} posts from last 24h · Updated ${formatFetchTime(new Date(cached.updated))} (refresh failed)`;
-            } else {
-              feed.innerHTML = '<div class="error">Failed to load feed</div>';
-              status.textContent = 'Error loading feed';
-            }
-          }
-          refreshBtn.disabled = false;
-        };
-      } catch (err) {
-        feed.innerHTML = `<div class="error">Failed to load feed: ${err.message}</div>`;
-        status.textContent = 'Error loading feed';
-        refreshBtn.disabled = false;
+        // Use the feed endpoint just to get accounts list (it's cached anyway)
+        const response = await fetch('/api/feed');
+        const data = await response.json();
+        if (data._meta?.accounts) {
+          renderAccounts(data._meta.accounts);
+        }
+      } catch {
+        // Silently fail - accounts list is not critical
       }
     }
 
+    // ===========================================
+    // Initialize
+    // ===========================================
     loadFeed();
   </script>
 </body>
