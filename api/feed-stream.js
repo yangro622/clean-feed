@@ -15,22 +15,17 @@ module.exports = async (req, res) => {
   // TEST_MODE: return mock data without calling the real API
   if (process.env.TEST_MODE) {
     console.log('[stream] TEST_MODE: returning mock data');
-    const mockData = require('../mocks/feed.json');
-    const now = new Date();
-    const mockAccounts = mockData._meta.accounts;
+    const { getMockFeed, getMockAccounts } = require('../mocks');
+    const mockData = getMockFeed();
+    const mockAccounts = getMockAccounts();
 
     res.write(`data: ${JSON.stringify({ type: 'start', total: mockAccounts.length, accounts: mockAccounts })}\n\n`);
 
-    // Simulate streaming by sending posts with updated timestamps
-    const posts = mockData.posts.map((post, i) => ({
-      ...post,
-      date: new Date(now - i * 30 * 60 * 1000).toISOString()
-    }));
-
+    // Simulate streaming by sending posts per account
     for (let i = 0; i < mockAccounts.length; i++) {
       const username = mockAccounts[i];
       res.write(`data: ${JSON.stringify({ type: 'progress', current: i + 1, total: mockAccounts.length, username })}\n\n`);
-      const userPosts = posts.filter(p => p.username === username);
+      const userPosts = mockData.posts.filter(p => p.username === username);
       if (userPosts.length > 0) {
         res.write(`data: ${JSON.stringify({ type: 'posts', username, posts: userPosts })}\n\n`);
       }
@@ -38,9 +33,9 @@ module.exports = async (req, res) => {
 
     res.write(`data: ${JSON.stringify({
       type: 'complete',
-      count: posts.length,
-      tweetsFetched: posts.length,
-      estimatedCost: '$0.0000',
+      count: mockData.count,
+      tweetsFetched: mockData._meta.tweetsFetched,
+      estimatedCost: mockData._meta.estimatedCost,
       accounts: mockAccounts
     })}\n\n`);
     res.end();

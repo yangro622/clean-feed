@@ -12,15 +12,8 @@ module.exports = async (req, res) => {
   // TEST_MODE: return mock data without calling the real API
   if (process.env.TEST_MODE) {
     console.log('[feed] TEST_MODE: returning mock data');
-    const mockData = require('../mocks/feed.json');
-    // Update timestamps to be relative to now (so posts appear as "recent")
-    const now = new Date();
-    mockData.updated = now.toISOString();
-    mockData.posts = mockData.posts.map((post, i) => ({
-      ...post,
-      date: new Date(now - i * 30 * 60 * 1000).toISOString() // 30 min apart
-    }));
-    return res.json(mockData);
+    const { getMockFeed } = require('../mocks');
+    return res.json(getMockFeed());
   }
 
   const startTime = Date.now();

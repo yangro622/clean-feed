@@ -17,7 +17,7 @@
       "date": "2024-01-15T10:45:00.000Z",
       "link": "https://x.com/mock_image/status/1002",
       "images": [
-        "https://pbs.twimg.com/media/example1.jpg"
+        "https://picsum.photos/seed/mock1/600/400"
       ],
       "urlMap": {},
       "quotedTweet": null
@@ -28,9 +28,9 @@
       "date": "2024-01-15T10:30:00.000Z",
       "link": "https://x.com/mock_gallery/status/1003",
       "images": [
-        "https://pbs.twimg.com/media/gallery1.jpg",
-        "https://pbs.twimg.com/media/gallery2.jpg",
-        "https://pbs.twimg.com/media/gallery3.jpg"
+        "https://picsum.photos/seed/gallery1/600/400",
+        "https://picsum.photos/seed/gallery2/600/400",
+        "https://picsum.photos/seed/gallery3/600/400"
       ],
       "urlMap": {},
       "quotedTweet": null
