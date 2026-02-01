@@ -339,6 +339,45 @@
     .post.new-post {
       animation: slideIn 0.3s ease-out;
     }
+
+    /* Read line divider - separates new from seen posts */
+    .read-line {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 0;
+      color: #1d9bf0;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .read-line::before,
+    .read-line::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #1d9bf0;
+    }
+
+    .read-line-text {
+      white-space: nowrap;
+    }
+
+    .mark-read-btn {
+      background: none;
+      border: 1px solid #1d9bf0;
+      color: #1d9bf0;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .mark-read-btn:hover {
+      background: #1d9bf0;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -721,12 +760,57 @@
       document.getElementById('status').textContent = message;
     }
 
-    function renderTweets(tweets, feedEl) {
+    async function renderTweets(tweets, feedEl, options = {}) {
       if (tweets.length === 0) {
         feedEl.innerHTML = '<div class="empty">No posts yet. Pull down to refresh.</div>';
         return;
       }
-      feedEl.innerHTML = tweets.map(renderPost).join('');
+
+      // Get lastViewedTimestamp from sync state
+      const syncState = await getSyncState();
+      const lastViewed = syncState.lastViewedTimestamp ? new Date(syncState.lastViewedTimestamp) : null;
+
+      // Find where to insert the read line (first tweet older than lastViewed)
+      let readLineIndex = -1;
+      if (lastViewed && !options.skipReadLine) {
+        for (let i = 0; i < tweets.length; i++) {
+          const tweetDate = new Date(tweets[i].date);
+          if (tweetDate <= lastViewed) {
+            readLineIndex = i;
+            break;
+          }
+        }
+      }
+
+      // Build HTML
+      const htmlParts = [];
+      for (let i = 0; i < tweets.length; i++) {
+        // Insert read line before the first "seen" tweet
+        if (i === readLineIndex && readLineIndex > 0) {
+          const newCount = readLineIndex;
+          htmlParts.push(`
+            <div class="read-line">
+              <span class="read-line-text">${newCount} new post${newCount > 1 ? 's' : ''} above</span>
+              <button class="mark-read-btn" onclick="markAllRead()">Mark all read</button>
+            </div>
+          `);
+        }
+        const isNew = options.highlightNew && i < (options.newCount || 0);
+        htmlParts.push(renderPost(tweets[i], isNew));
+      }
+
+      feedEl.innerHTML = htmlParts.join('');
+    }
+
+    async function markAllRead() {
+      const newestTimestamp = await getNewestTimestamp();
+      if (newestTimestamp) {
+        await updateSyncState({ lastViewedTimestamp: newestTimestamp });
+      }
+      // Re-render without read line
+      const tweets = await getAllTweets();
+      const feed = document.getElementById('feed');
+      await renderTweets(tweets, feed, { skipReadLine: true });
     }
 
     // ===========================================
@@ -837,7 +921,7 @@
 
         if (existingTweets.length > 0 && !forceRefresh) {
           // Show cached tweets immediately
-          renderTweets(existingTweets, feed);
+          await renderTweets(existingTweets, feed);
           updateStatusFromTweets(existingTweets);
         } else {
           feed.innerHTML = '<div class="loading">Fetching posts...</div>';
@@ -856,9 +940,17 @@
 
         // Render all tweets (now including new ones)
         const allTweets = await getAllTweets();
-        renderTweets(allTweets, feed);
+        await renderTweets(allTweets, feed);
         updateStatusFromTweets(allTweets);
         renderDevStats(syncResult._meta, syncResult.tweets.length > 0 ? 'synced' : 'local');
+
+        // Update lastViewedTimestamp if this is first load (not a manual refresh)
+        if (!forceRefresh && syncResult.tweets.length > 0) {
+          const newestTimestamp = await getNewestTimestamp();
+          if (newestTimestamp) {
+            await updateSyncState({ lastViewedTimestamp: newestTimestamp });
+          }
+        }
 
         // Fetch accounts for sidebar
         fetchAccountsList();
@@ -867,7 +959,7 @@
         console.error('[loadFeed] Error:', err);
         const existingTweets = await getAllTweets().catch(() => []);
         if (existingTweets.length > 0) {
-          renderTweets(existingTweets, feed);
+          await renderTweets(existingTweets, feed);
           updateStatus(`Offline · ${existingTweets.length} cached posts`);
         } else {
           feed.innerHTML = `<div class="error">Failed to load feed: ${err.message}</div>`;
@@ -997,12 +1089,12 @@
         const allTweets = await getAllTweets();
         const newCount = result.tweets.length;
 
-        // Render with animation for new posts
+        // Render with animation for new posts (read line will show since lastViewedTimestamp hasn't changed)
         if (newCount > 0) {
-          renderTweetsWithNewBadge(allTweets, feed, newCount);
+          await renderTweets(allTweets, feed, { highlightNew: true, newCount });
           updateStatus(`${newCount} new posts loaded`);
         } else {
-          renderTweets(allTweets, feed);
+          await renderTweets(allTweets, feed);
           updateStatus('Already up to date');
         }
 
@@ -1036,7 +1128,7 @@
         }
 
         const allTweets = await getAllTweets();
-        renderTweets(allTweets, feed);
+        await renderTweets(allTweets, feed);
         updateStatusFromTweets(allTweets);
         updateLoadOlderFooter(allTweets);
         renderDevStats(result._meta, 'synced');
@@ -1047,20 +1139,6 @@
         isLoadingOlder = false;
         footer.classList.remove('loading');
       }
-    }
-
-    function renderTweetsWithNewBadge(tweets, feedEl, newCount) {
-      if (tweets.length === 0) {
-        feedEl.innerHTML = '<div class="empty">No posts yet. Pull down to refresh.</div>';
-        return;
-      }
-
-      const html = tweets.map((tweet, i) => {
-        const isNew = i < newCount;
-        return renderPost(tweet, isNew);
-      }).join('');
-
-      feedEl.innerHTML = html;
     }
 
     function updateLoadOlderFooter(tweets) {
