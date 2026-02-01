@@ -1,25 +1,54 @@
 // Accounts from environment variable (comma-separated) or fallback to file
-// Use TEST_MODE=1 to test with a single account and limited tweets
-const accounts = process.env.TEST_MODE
-  ? ['elonmusk']
-  : process.env.TWITTER_ACCOUNTS
-    ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
-    : require('../accounts.json');
-
-// In test mode, limit tweets per account (API always returns 20, so we slice client-side)
-const TEST_TWEET_LIMIT = process.env.TEST_MODE ? 5 : Infinity;
+const accounts = process.env.TWITTER_ACCOUNTS
+  ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
+  : require('../accounts.json');
 
 const COST_PER_1000_TWEETS = 0.15;
 
 module.exports = async (req, res) => {
-  const startTime = Date.now();
-  console.log(`[stream] START accounts=${accounts.length}`);
-
   // Set up Server-Sent Events
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('Access-Control-Allow-Origin', '*');
+
+  // TEST_MODE: return mock data without calling the real API
+  if (process.env.TEST_MODE) {
+    console.log('[stream] TEST_MODE: returning mock data');
+    const mockData = require('../mocks/feed.json');
+    const now = new Date();
+    const mockAccounts = mockData._meta.accounts;
+
+    res.write(`data: ${JSON.stringify({ type: 'start', total: mockAccounts.length, accounts: mockAccounts })}\n\n`);
+
+    // Simulate streaming by sending posts with updated timestamps
+    const posts = mockData.posts.map((post, i) => ({
+      ...post,
+      date: new Date(now - i * 30 * 60 * 1000).toISOString()
+    }));
+
+    for (let i = 0; i < mockAccounts.length; i++) {
+      const username = mockAccounts[i];
+      res.write(`data: ${JSON.stringify({ type: 'progress', current: i + 1, total: mockAccounts.length, username })}\n\n`);
+      const userPosts = posts.filter(p => p.username === username);
+      if (userPosts.length > 0) {
+        res.write(`data: ${JSON.stringify({ type: 'posts', username, posts: userPosts })}\n\n`);
+      }
+    }
+
+    res.write(`data: ${JSON.stringify({
+      type: 'complete',
+      count: posts.length,
+      tweetsFetched: posts.length,
+      estimatedCost: '$0.0000',
+      accounts: mockAccounts
+    })}\n\n`);
+    res.end();
+    return;
+  }
+
+  const startTime = Date.now();
+  console.log(`[stream] START accounts=${accounts.length}`);
 
   const apiKey = process.env.TWITTERAPI_IO_KEY;
   if (!apiKey) {
@@ -62,7 +91,7 @@ module.exports = async (req, res) => {
         continue;
       }
 
-      const tweets = data.data.tweets.slice(0, TEST_TWEET_LIMIT);
+      const tweets = data.data.tweets;
       totalTweetsFetched += tweets.length;
       successCount++;
 
