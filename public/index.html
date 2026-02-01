@@ -136,6 +136,37 @@
       margin-top: 8px;
     }
 
+    .video-thumbnail {
+      position: relative;
+      display: inline-block;
+      margin-top: 8px;
+    }
+
+    .video-thumbnail img {
+      max-width: 100%;
+      border-radius: 12px;
+    }
+
+    .play-icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px;
+      height: 60px;
+      background: rgba(0, 0, 0, 0.7);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: #fff;
+    }
+
+    .video-thumbnail:hover .play-icon {
+      background: rgba(29, 155, 240, 0.9);
+    }
+
     .quoted-tweet {
       display: block;
       margin-top: 12px;
@@ -364,6 +395,12 @@
       const images = (post.images || []).map(url =>
         `<img class="post-image" src="${url}" alt="" loading="lazy">`
       ).join('');
+      const videos = (post.videos || []).map(url =>
+        `<a href="${post.link}" target="_blank" class="video-thumbnail">
+          <img src="${url}" alt="Video thumbnail" loading="lazy">
+          <span class="play-icon">▶</span>
+        </a>`
+      ).join('');
 
       return `
         <article class="post">
@@ -374,6 +411,7 @@
           <div class="post-content">${formatText(post.text, post.urlMap || {})}</div>
           ${renderQuotedTweet(post.quotedTweet)}
           ${images ? `<div class="post-images">${images}</div>` : ''}
+          ${videos ? `<div class="post-images">${videos}</div>` : ''}
           <a class="post-link" href="${post.link}" target="_blank">View on X</a>
         </article>
       `;

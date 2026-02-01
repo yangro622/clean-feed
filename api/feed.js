@@ -81,6 +81,9 @@ module.exports = async (req, res) => {
             const images = media
               .filter(m => m.type === 'photo')
               .map(m => m.media_url_https);
+            const videos = media
+              .filter(m => m.type === 'video' || m.type === 'animated_gif')
+              .map(m => m.media_url_https);
 
             // Extract URL mappings (t.co -> real URL)
             const urlMap = {};
@@ -94,6 +97,7 @@ module.exports = async (req, res) => {
               date,
               link: tweet.url || `https://x.com/${username}/status/${tweet.id}`,
               images,
+              videos,
               urlMap,
               quotedTweet: tweet.quoted_tweet ? {
                 username: tweet.quoted_tweet.author?.userName,

@@ -99,6 +99,9 @@ module.exports = async (req, res) => {
         if (date > oneDayAgo) {
           const media = tweet.extendedEntities?.media || tweet.entities?.media || [];
           const images = media.filter(m => m.type === 'photo').map(m => m.media_url_https);
+          const videos = media
+            .filter(m => m.type === 'video' || m.type === 'animated_gif')
+            .map(m => m.media_url_https);
 
           const urlMap = {};
           (tweet.entities?.urls || []).forEach(u => {
@@ -111,6 +114,7 @@ module.exports = async (req, res) => {
             date,
             link: tweet.url || `https://x.com/${username}/status/${tweet.id}`,
             images,
+            videos,
             urlMap,
             quotedTweet: tweet.quoted_tweet ? {
               username: tweet.quoted_tweet.author?.userName,
