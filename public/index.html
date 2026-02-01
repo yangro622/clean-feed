@@ -267,6 +267,78 @@
       text-decoration: underline;
       color: #1d9bf0;
     }
+
+    /* Pull-to-refresh indicator */
+    .pull-indicator {
+      text-align: center;
+      padding: 16px;
+      color: #71767b;
+      font-size: 14px;
+      transition: transform 0.2s, opacity 0.2s;
+      transform: translateY(-100%);
+      opacity: 0;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+    }
+
+    .pull-indicator.visible {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .pull-indicator.refreshing {
+      color: #1d9bf0;
+    }
+
+    /* Load older footer */
+    .load-older-footer {
+      text-align: center;
+      padding: 20px 16px;
+      color: #71767b;
+      font-size: 14px;
+      border-top: 1px solid #2f3336;
+      margin-top: 16px;
+    }
+
+    .load-older-footer .date-range {
+      margin-bottom: 8px;
+    }
+
+    .load-older-footer .swipe-hint {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    .load-older-footer.loading {
+      color: #1d9bf0;
+    }
+
+    .load-older-footer.at-limit {
+      opacity: 0.5;
+    }
+
+    /* Gesture feedback */
+    .feed-container {
+      position: relative;
+      touch-action: pan-y;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .post.new-post {
+      animation: slideIn 0.3s ease-out;
+    }
   </style>
 </head>
 <body>
@@ -276,9 +348,16 @@
     <p class="meta" id="status">Loading...</p>
   </header>
 
-  <main id="feed">
-    <div class="loading">Fetching posts...</div>
-  </main>
+  <div class="feed-container" id="feed-container">
+    <div class="pull-indicator" id="pull-indicator">Pull to refresh</div>
+    <main id="feed">
+      <div class="loading">Fetching posts...</div>
+    </main>
+    <div class="load-older-footer" id="load-older-footer" style="display: none;">
+      <div class="date-range" id="date-range"></div>
+      <div class="swipe-hint">Swipe up for older posts</div>
+    </div>
+  </div>
 
   <button class="refresh-btn" id="refresh" onclick="loadFeed(true)">Refresh</button>
 
@@ -574,14 +653,15 @@
       `;
     }
 
-    function renderPost(post) {
+    function renderPost(post, isNew = false) {
       const time = timeAgo(new Date(post.date));
       const images = (post.images || []).map(url =>
         `<img class="post-image" src="${url}" alt="" loading="lazy">`
       ).join('');
+      const newClass = isNew ? ' new-post' : '';
 
       return `
-        <article class="post">
+        <article class="post${newClass}">
           <div class="post-header">
             <a class="username" href="https://x.com/${post.username}" target="_blank">@${post.username}</a>
             <span class="time">${time}</span>
@@ -822,9 +902,197 @@
     }
 
     // ===========================================
+    // Gesture Handling (Pull-to-Refresh & Load Older)
+    // ===========================================
+    let touchStartY = 0;
+    let touchEndY = 0;
+    let isPulling = false;
+    let isRefreshing = false;
+    let isLoadingOlder = false;
+    let canLoadOlder = true;
+
+    function setupGestures() {
+      const container = document.getElementById('feed-container');
+      const pullIndicator = document.getElementById('pull-indicator');
+
+      container.addEventListener('touchstart', (e) => {
+        touchStartY = e.touches[0].clientY;
+      }, { passive: true });
+
+      container.addEventListener('touchmove', (e) => {
+        if (isRefreshing || isLoadingOlder) return;
+
+        touchEndY = e.touches[0].clientY;
+        const deltaY = touchEndY - touchStartY;
+
+        // Pull-to-refresh: at top of page, pulling down
+        if (window.scrollY === 0 && deltaY > 0) {
+          isPulling = true;
+          const progress = Math.min(deltaY / 100, 1);
+          pullIndicator.style.opacity = progress;
+          pullIndicator.style.transform = `translateY(${Math.min(deltaY * 0.5, 50)}px)`;
+
+          if (deltaY > 80) {
+            pullIndicator.textContent = 'Release to refresh';
+          } else {
+            pullIndicator.textContent = 'Pull to refresh';
+          }
+        }
+      }, { passive: true });
+
+      container.addEventListener('touchend', async () => {
+        const deltaY = touchEndY - touchStartY;
+
+        // Pull-to-refresh triggered
+        if (isPulling && deltaY > 80 && !isRefreshing) {
+          isRefreshing = true;
+          pullIndicator.textContent = 'Refreshing...';
+          pullIndicator.classList.add('refreshing');
+
+          try {
+            await handlePullToRefresh();
+          } finally {
+            isRefreshing = false;
+            pullIndicator.classList.remove('refreshing');
+          }
+        }
+
+        // Reset pull indicator
+        isPulling = false;
+        pullIndicator.style.opacity = 0;
+        pullIndicator.style.transform = 'translateY(-100%)';
+        touchStartY = 0;
+        touchEndY = 0;
+      });
+
+      // Swipe up to load older - use scroll position + hard swipe detection
+      let lastScrollTop = 0;
+      let swipeVelocity = 0;
+
+      window.addEventListener('scroll', () => {
+        const currentScroll = window.scrollY;
+        swipeVelocity = currentScroll - lastScrollTop;
+        lastScrollTop = currentScroll;
+      }, { passive: true });
+
+      // Detect hard swipe up at bottom
+      container.addEventListener('touchend', async () => {
+        const deltaY = touchStartY - touchEndY; // Positive = swipe up
+
+        // Hard swipe up (>100px) near bottom of page
+        const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+        if (deltaY > 100 && scrollBottom < 200 && canLoadOlder && !isLoadingOlder) {
+          await handleLoadOlder();
+        }
+      });
+    }
+
+    async function handlePullToRefresh() {
+      const feed = document.getElementById('feed');
+      const prevCount = await getTweetCount();
+
+      try {
+        const result = await loadNewer();
+
+        const allTweets = await getAllTweets();
+        const newCount = result.tweets.length;
+
+        // Render with animation for new posts
+        if (newCount > 0) {
+          renderTweetsWithNewBadge(allTweets, feed, newCount);
+          updateStatus(`${newCount} new posts loaded`);
+        } else {
+          renderTweets(allTweets, feed);
+          updateStatus('Already up to date');
+        }
+
+        updateStatusFromTweets(allTweets);
+        updateLoadOlderFooter(allTweets);
+        renderDevStats(result._meta, 'synced');
+      } catch (err) {
+        console.error('[pullToRefresh] Error:', err);
+        updateStatus('Refresh failed');
+      }
+    }
+
+    async function handleLoadOlder() {
+      const feed = document.getElementById('feed');
+      const footer = document.getElementById('load-older-footer');
+      isLoadingOlder = true;
+      footer.classList.add('loading');
+      footer.querySelector('.swipe-hint').textContent = 'Loading...';
+
+      try {
+        const result = await loadOlder();
+
+        if (result.hitLimit) {
+          canLoadOlder = false;
+          footer.classList.add('at-limit');
+          footer.querySelector('.swipe-hint').textContent = `Reached ${CONFIG.MAX_RETENTION_DAYS}-day limit`;
+        } else if (result.tweets.length === 0) {
+          footer.querySelector('.swipe-hint').textContent = 'No more posts';
+        } else {
+          footer.querySelector('.swipe-hint').textContent = 'Swipe up for older posts';
+        }
+
+        const allTweets = await getAllTweets();
+        renderTweets(allTweets, feed);
+        updateStatusFromTweets(allTweets);
+        updateLoadOlderFooter(allTweets);
+        renderDevStats(result._meta, 'synced');
+      } catch (err) {
+        console.error('[loadOlder] Error:', err);
+        footer.querySelector('.swipe-hint').textContent = 'Load failed - try again';
+      } finally {
+        isLoadingOlder = false;
+        footer.classList.remove('loading');
+      }
+    }
+
+    function renderTweetsWithNewBadge(tweets, feedEl, newCount) {
+      if (tweets.length === 0) {
+        feedEl.innerHTML = '<div class="empty">No posts yet. Pull down to refresh.</div>';
+        return;
+      }
+
+      const html = tweets.map((tweet, i) => {
+        const isNew = i < newCount;
+        return renderPost(tweet, isNew);
+      }).join('');
+
+      feedEl.innerHTML = html;
+    }
+
+    function updateLoadOlderFooter(tweets) {
+      const footer = document.getElementById('load-older-footer');
+      const dateRange = document.getElementById('date-range');
+
+      if (tweets.length === 0) {
+        footer.style.display = 'none';
+        return;
+      }
+
+      footer.style.display = 'block';
+      const oldestDate = new Date(tweets[tweets.length - 1].date);
+      dateRange.textContent = `Showing posts since ${formatDateShort(oldestDate)}`;
+
+      // Check if we're at the retention limit
+      const retentionLimit = new Date(Date.now() - CONFIG.MAX_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+      if (oldestDate <= retentionLimit) {
+        canLoadOlder = false;
+        footer.classList.add('at-limit');
+        footer.querySelector('.swipe-hint').textContent = `Reached ${CONFIG.MAX_RETENTION_DAYS}-day limit`;
+      }
+    }
+
+    // ===========================================
     // Initialize
     // ===========================================
-    loadFeed();
+    loadFeed().then(() => {
+      setupGestures();
+      // Update load older footer after initial load
+      getAllTweets().then(tweets => updateLoadOlderFooter(tweets));
+    });
   </script>
 </body>
 </html>
