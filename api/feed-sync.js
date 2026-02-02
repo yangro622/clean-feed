@@ -53,8 +53,9 @@ module.exports = async (req, res) => {
       query += ` until:${formatted}`;
     }
 
-    // Exclude retweets
+    // Exclude retweets and replies
     query += ' -filter:retweets';
+    query += ' -filter:replies';
 
     console.log(`[feed-sync] query="${query.substring(0, 100)}..."`);
 
