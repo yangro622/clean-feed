@@ -77,17 +77,27 @@ module.exports = async (req, res) => {
       });
 
       if (!response.ok) {
-        console.error(`[feed-sync] API_ERROR status=${response.status}`);
-        return res.status(response.status).json({ error: `API error: ${response.status}` });
+        const errorText = await response.text().catch(() => 'Unable to read error');
+        console.error(`[feed-sync] API_ERROR status=${response.status} body=${errorText.substring(0, 500)}`);
+        return res.status(response.status).json({
+          error: `API error: ${response.status}`,
+          details: errorText.substring(0, 200)
+        });
       }
 
       const data = await response.json();
 
-      if (data.status !== 'success') {
-        console.error(`[feed-sync] API_FAILED status=${data.status}`);
-        return res.status(500).json({ error: 'API request failed' });
+      // Check for error in response
+      if (data.error || (data.status && data.status !== 'success')) {
+        console.error(`[feed-sync] API_FAILED status=${data.status} error=${data.error} response=${JSON.stringify(data).substring(0, 500)}`);
+        return res.status(500).json({
+          error: 'API request failed',
+          details: data.message || data.error || 'Unknown error',
+          status: data.status
+        });
       }
 
+      // advanced_search returns {tweets: [...], has_next_page, next_cursor} directly
       const tweets = data.tweets || [];
       totalTweetsFetched += tweets.length;
 
