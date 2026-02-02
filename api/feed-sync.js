@@ -36,9 +36,10 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Build advanced_search query: "from:user1 OR from:user2 since:TIMESTAMP"
+    // Build advanced_search query: "(from:user1 OR from:user2) since:TIMESTAMP"
+    // Use parentheses to ensure proper grouping of OR clauses
     const fromClauses = accounts.map(u => `from:${u}`).join(' OR ');
-    let query = fromClauses;
+    let query = `(${fromClauses})`;
 
     // Add time filters
     if (since) {
@@ -105,6 +106,11 @@ module.exports = async (req, res) => {
       for (const tweet of tweets) {
         const post = transformTweet(tweet);
         if (post) {
+          // Validate that tweet is from a followed account
+          if (!accounts.includes(post.username)) {
+            console.warn(`[feed-sync] FILTERED unexpected account: @${post.username} - "${post.text.substring(0, 60)}"`);
+            continue;
+          }
           allPosts.push(post);
         }
       }
@@ -124,7 +130,8 @@ module.exports = async (req, res) => {
 
     const estimatedCost = (totalTweetsFetched / 1000) * COST_PER_1000_TWEETS;
     const duration = Date.now() - startTime;
-    console.log(`[feed-sync] DONE tweets=${totalTweetsFetched} posts=${allPosts.length} cost=$${estimatedCost.toFixed(4)} hasMore=${hasMore} duration=${duration}ms`);
+    const filtered = totalTweetsFetched - allPosts.length;
+    console.log(`[feed-sync] DONE tweets=${totalTweetsFetched} posts=${allPosts.length} filtered=${filtered} cost=$${estimatedCost.toFixed(4)} hasMore=${hasMore} duration=${duration}ms`);
 
     res.json({
       tweets: allPosts,
