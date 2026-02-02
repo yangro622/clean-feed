@@ -378,6 +378,59 @@
       background: #1d9bf0;
       color: #fff;
     }
+
+    /* Action buttons container */
+    .action-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .action-buttons .refresh-btn {
+      flex: 1;
+      margin-top: 0;
+    }
+
+    .refresh-btn.secondary {
+      background: #2f3336;
+    }
+
+    .refresh-btn.secondary:hover {
+      background: #3a3f44;
+    }
+
+    .refresh-btn.danger {
+      background: #f4212e;
+    }
+
+    .refresh-btn.danger:hover {
+      background: #dc1d28;
+    }
+
+    /* Debug panel */
+    .debug-panel {
+      margin-top: 24px;
+      padding: 16px;
+      background: #16181c;
+      border: 1px solid #2f3336;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+
+    .debug-panel h3 {
+      color: #71767b;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .debug-panel pre {
+      color: #e7e9ea;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 0;
+      font-family: 'SF Mono', Monaco, monospace;
+      line-height: 1.6;
+    }
   </style>
 </head>
 <body>
@@ -398,7 +451,17 @@
     </div>
   </div>
 
-  <button class="refresh-btn" id="refresh" onclick="loadFeed(true)">Refresh</button>
+  <div class="action-buttons">
+    <button class="refresh-btn" id="refresh" onclick="loadFeed(true)">Refresh (Load Newer)</button>
+    <button class="refresh-btn secondary" id="load-older-btn" onclick="handleLoadOlderClick()">Load Older</button>
+    <button class="refresh-btn danger" id="clear-db-btn" onclick="clearDatabase()">Clear IndexedDB</button>
+  </div>
+
+  <!-- Debug panel for development -->
+  <div id="debug-panel" class="debug-panel">
+    <h3>IndexedDB Debug</h3>
+    <pre id="debug-info">Loading...</pre>
+  </div>
 
   <footer id="following" class="following-section">
     <h2>Following</h2>
@@ -1101,9 +1164,11 @@
         updateStatusFromTweets(allTweets);
         updateLoadOlderFooter(allTweets);
         renderDevStats(result._meta, 'synced');
+        updateDebugPanel();
       } catch (err) {
         console.error('[pullToRefresh] Error:', err);
         updateStatus('Refresh failed');
+        updateDebugPanel();
       }
     }
 
@@ -1164,12 +1229,75 @@
     }
 
     // ===========================================
+    // Debug & Dev Tools
+    // ===========================================
+    async function updateDebugPanel() {
+      const debugInfo = document.getElementById('debug-info');
+      try {
+        const tweets = await getAllTweets();
+        const syncState = await getSyncState();
+        const newestDate = tweets.length > 0 ? new Date(tweets[0].date) : null;
+        const oldestDate = tweets.length > 0 ? new Date(tweets[tweets.length - 1].date) : null;
+
+        debugInfo.textContent = `Stored tweets: ${tweets.length}
+Newest: ${newestDate ? newestDate.toLocaleString() : 'none'}
+Oldest: ${oldestDate ? oldestDate.toLocaleString() : 'none'}
+
+Sync State:
+  newestTimestamp: ${syncState.newestTimestamp ? new Date(syncState.newestTimestamp).toLocaleString() : 'null'}
+  oldestTimestamp: ${syncState.oldestTimestamp ? new Date(syncState.oldestTimestamp).toLocaleString() : 'null'}
+  lastViewedTimestamp: ${syncState.lastViewedTimestamp ? new Date(syncState.lastViewedTimestamp).toLocaleString() : 'null'}
+
+Unique usernames: ${[...new Set(tweets.map(t => t.username))].join(', ')}`;
+      } catch (err) {
+        debugInfo.textContent = `Error: ${err.message}`;
+      }
+    }
+
+    async function clearDatabase() {
+      if (!confirm('Clear all stored tweets from IndexedDB?')) return;
+
+      try {
+        await openDB();
+        const tx = db.transaction(['tweets', 'syncState'], 'readwrite');
+        tx.objectStore('tweets').clear();
+        tx.objectStore('syncState').clear();
+        await new Promise((resolve, reject) => {
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+        });
+        console.log('[Debug] Database cleared');
+        updateDebugPanel();
+        document.getElementById('feed').innerHTML = '<div class="empty">Database cleared. Refresh to reload.</div>';
+        updateStatus('Database cleared');
+      } catch (err) {
+        console.error('[Debug] Clear failed:', err);
+        alert('Failed to clear database: ' + err.message);
+      }
+    }
+
+    async function handleLoadOlderClick() {
+      const btn = document.getElementById('load-older-btn');
+      btn.disabled = true;
+      btn.textContent = 'Loading...';
+
+      try {
+        await handleLoadOlder();
+        await updateDebugPanel();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Load Older';
+      }
+    }
+
+    // ===========================================
     // Initialize
     // ===========================================
-    loadFeed().then(() => {
+    loadFeed().then(async () => {
       setupGestures();
-      // Update load older footer after initial load
-      getAllTweets().then(tweets => updateLoadOlderFooter(tweets));
+      const tweets = await getAllTweets();
+      updateLoadOlderFooter(tweets);
+      updateDebugPanel();
     });
   </script>
 </body>

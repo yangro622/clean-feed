@@ -36,7 +36,7 @@ function getMockAccounts() {
 
 /**
  * Get mock feed-sync data for cursor-based sync endpoint
- * Simulates bidirectional sync with since/until filtering
+ * Uses the rich mock data from feed.json, spread across multiple days
  * @param {Object} params - Query parameters
  * @param {string} params.since - ISO timestamp for "load newer"
  * @param {string} params.until - ISO timestamp for "load older"
@@ -44,30 +44,34 @@ function getMockAccounts() {
  * @returns {Object} Sync response with tweets array
  */
 function getMockFeedSync({ since, until, cursor } = {}) {
-  const now = new Date();
+  // Use a fixed "now" based on today at midnight for stable mock data
+  // This prevents tweets from shifting on every refresh
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
 
-  // Generate mock tweets spanning multiple days for testing
+  // Use the rich mock data from feed.json, spread over multiple days
+  const basePosts = mockFeed.posts;
   const allPosts = [];
-  const accounts = getMockAccounts();
 
-  // Generate 20 mock tweets over 5 days
-  for (let i = 0; i < 20; i++) {
-    const daysAgo = Math.floor(i / 4); // 4 tweets per day
-    const hoursOffset = (i % 4) * 6; // Spread throughout day
-    const postDate = new Date(now - daysAgo * 24 * 60 * 60 * 1000 - hoursOffset * 60 * 60 * 1000);
-    const account = accounts[i % accounts.length];
+  // Create 3 "days" worth of the rich mock posts (24 total tweets over 3 days)
+  for (let day = 0; day < 3; day++) {
+    for (let i = 0; i < basePosts.length; i++) {
+      const post = basePosts[i];
+      const hoursAgo = day * 24 + i * 3; // Spread posts 3 hours apart
+      const postDate = new Date(today - hoursAgo * 60 * 60 * 1000);
 
-    allPosts.push({
-      id: `mock_${1000 + i}`,
-      platform: 'twitter',
-      username: account,
-      text: `Mock tweet #${i + 1} from @${account} - generated for sync testing`,
-      date: postDate.toISOString(),
-      link: `https://x.com/${account}/status/mock_${1000 + i}`,
-      images: [],
-      urlMap: {},
-      quotedTweet: null,
-    });
+      allPosts.push({
+        id: `sync_${day}_${i}`,
+        platform: 'twitter',
+        username: post.username,
+        text: post.text,
+        date: postDate.toISOString(),
+        link: post.link.replace('/status/', `/status/sync_${day}_`),
+        images: post.images || [],
+        urlMap: post.urlMap || {},
+        quotedTweet: post.quotedTweet || null,
+      });
+    }
   }
 
   // Filter by since/until
@@ -87,12 +91,12 @@ function getMockFeedSync({ since, until, cursor } = {}) {
   return {
     tweets: filteredPosts,
     nextCursor: null,
-    hasMore: false,
+    hasMore: !until || filteredPosts.length > 0, // hasMore=true if we might have older posts
     direction: since ? 'newer' : (until ? 'older' : 'initial'),
     _meta: {
       tweetsFetched: filteredPosts.length,
       estimatedCost: '$0.0000',
-      accounts: accounts.length,
+      accounts: mockFeed._meta.accounts.length,
       query: 'mock query'
     }
   };
