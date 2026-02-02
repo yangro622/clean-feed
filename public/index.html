@@ -1017,6 +1017,9 @@
         // Prune old tweets
         await pruneOldTweets(CONFIG.MAX_RETENTION_DAYS);
 
+        // Clean up tweets from unexpected accounts (old cached data)
+        await cleanupUnknownAccounts();
+
         // Check existing tweets
         const existingTweets = await getAllTweets();
 
@@ -1289,6 +1292,50 @@ Sync State:
 Unique usernames: ${[...new Set(tweets.map(t => t.username))].join(', ')}`;
       } catch (err) {
         debugInfo.textContent = `Error: ${err.message}`;
+      }
+    }
+
+    async function cleanupUnknownAccounts() {
+      // Remove tweets from accounts not in accounts.json
+      // This cleans up old cached data from before server-side validation
+      try {
+        const response = await fetch('/api/feed');
+        const data = await response.json();
+        const validAccounts = data._meta?.accounts || [];
+
+        if (validAccounts.length === 0) return;
+
+        await openDB();
+        const tx = db.transaction('tweets', 'readwrite');
+        const store = tx.objectStore('tweets');
+        const request = store.openCursor();
+        let deletedCount = 0;
+
+        return new Promise((resolve, reject) => {
+          request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor) {
+              const tweet = cursor.value;
+              if (!validAccounts.includes(tweet.username)) {
+                console.log(`[Cleanup] Removing tweet from unexpected account: @${tweet.username}`);
+                cursor.delete();
+                deletedCount++;
+              }
+              cursor.continue();
+            }
+          };
+
+          tx.oncomplete = () => {
+            if (deletedCount > 0) {
+              console.log(`[Cleanup] Removed ${deletedCount} tweets from unexpected accounts`);
+            }
+            resolve(deletedCount);
+          };
+          tx.onerror = () => reject(tx.error);
+        });
+      } catch (err) {
+        console.error('[Cleanup] Failed:', err);
+        return 0;
       }
     }
 
