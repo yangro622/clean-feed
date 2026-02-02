@@ -1,0 +1,174 @@
+// Cursor-based sync endpoint using twitterapi.io advanced_search
+// Supports bidirectional sync: since (load newer) and until (load older)
+
+const accounts = process.env.TWITTER_ACCOUNTS
+  ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
+  : require('../accounts.json');
+
+const COST_PER_1000_TWEETS = 0.15;
+const MAX_TWEETS_PER_REQUEST = 6666; // ~$1.00 max
+
+module.exports = async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-cache'); // Sync endpoint should never be cached
+
+  // TEST_MODE: return mock data
+  if (process.env.TEST_MODE) {
+    console.log('[feed-sync] TEST_MODE: returning mock data');
+    const { getMockFeedSync } = require('../mocks');
+    const { since, until, cursor } = req.query;
+    return res.json(getMockFeedSync({ since, until, cursor }));
+  }
+
+  const startTime = Date.now();
+  const { since, until, cursor } = req.query;
+  console.log(`[feed-sync] START since=${since || 'none'} until=${until || 'none'} cursor=${cursor ? 'yes' : 'no'} accounts=${accounts.length}`);
+
+  const apiKey = process.env.TWITTERAPI_IO_KEY;
+  if (!apiKey) {
+    console.log('[feed-sync] ERROR no_api_key');
+    return res.status(500).json({ error: 'TWITTERAPI_IO_KEY not configured' });
+  }
+
+  if (accounts.length === 0) {
+    console.log('[feed-sync] ERROR no_accounts');
+    return res.status(400).json({ error: 'No accounts configured' });
+  }
+
+  try {
+    // Build advanced_search query: "from:user1 OR from:user2 since:TIMESTAMP"
+    const fromClauses = accounts.map(u => `from:${u}`).join(' OR ');
+    let query = fromClauses;
+
+    // Add time filters
+    if (since) {
+      // Format: YYYY-MM-DD_HH:MM:SS_UTC
+      const sinceDate = new Date(since);
+      const formatted = formatDateForTwitter(sinceDate);
+      query += ` since:${formatted}`;
+    }
+    if (until) {
+      const untilDate = new Date(until);
+      const formatted = formatDateForTwitter(untilDate);
+      query += ` until:${formatted}`;
+    }
+
+    // Exclude retweets
+    query += ' -filter:retweets';
+
+    console.log(`[feed-sync] query="${query.substring(0, 100)}..."`);
+
+    const allPosts = [];
+    let nextCursor = cursor || null;
+    let hasMore = true;
+    let totalTweetsFetched = 0;
+
+    // Paginate through results
+    while (hasMore && totalTweetsFetched < MAX_TWEETS_PER_REQUEST) {
+      const url = new URL('https://api.twitterapi.io/twitter/tweet/advanced_search');
+      url.searchParams.set('query', query);
+      url.searchParams.set('queryType', 'Latest');
+      if (nextCursor) {
+        url.searchParams.set('cursor', nextCursor);
+      }
+
+      const response = await fetch(url.toString(), {
+        headers: { 'X-API-Key': apiKey }
+      });
+
+      if (!response.ok) {
+        console.error(`[feed-sync] API_ERROR status=${response.status}`);
+        return res.status(response.status).json({ error: `API error: ${response.status}` });
+      }
+
+      const data = await response.json();
+
+      if (data.status !== 'success') {
+        console.error(`[feed-sync] API_FAILED status=${data.status}`);
+        return res.status(500).json({ error: 'API request failed' });
+      }
+
+      const tweets = data.tweets || [];
+      totalTweetsFetched += tweets.length;
+
+      for (const tweet of tweets) {
+        const post = transformTweet(tweet);
+        if (post) {
+          allPosts.push(post);
+        }
+      }
+
+      // Check pagination
+      hasMore = data.has_next_page === true;
+      nextCursor = data.next_cursor || null;
+
+      // If no tweets returned, stop
+      if (tweets.length === 0) {
+        hasMore = false;
+      }
+    }
+
+    // Sort by date, newest first
+    allPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const estimatedCost = (totalTweetsFetched / 1000) * COST_PER_1000_TWEETS;
+    const duration = Date.now() - startTime;
+    console.log(`[feed-sync] DONE tweets=${totalTweetsFetched} posts=${allPosts.length} cost=$${estimatedCost.toFixed(4)} hasMore=${hasMore} duration=${duration}ms`);
+
+    res.json({
+      tweets: allPosts,
+      nextCursor: hasMore ? nextCursor : null,
+      hasMore,
+      direction: since ? 'newer' : (until ? 'older' : 'initial'),
+      _meta: {
+        tweetsFetched: totalTweetsFetched,
+        estimatedCost: `$${estimatedCost.toFixed(4)}`,
+        accounts: accounts.length,
+        query: query.substring(0, 200)
+      }
+    });
+  } catch (err) {
+    console.error(`[feed-sync] FATAL error=${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Format date for Twitter search: YYYY-MM-DD_HH:MM:SS_UTC
+function formatDateForTwitter(date) {
+  const d = new Date(date);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}_${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}_UTC`;
+}
+
+// Transform API tweet to our post format
+function transformTweet(tweet) {
+  if (!tweet) return null;
+
+  // Extract media URLs
+  const media = tweet.extendedEntities?.media || tweet.entities?.media || [];
+  const images = media
+    .filter(m => m.type === 'photo')
+    .map(m => m.media_url_https);
+
+  // Extract URL mappings (t.co -> real URL)
+  const urlMap = {};
+  (tweet.entities?.urls || []).forEach(u => {
+    urlMap[u.url] = u.expanded_url || u.url;
+  });
+
+  return {
+    id: tweet.id,
+    platform: 'twitter',
+    username: tweet.author?.userName,
+    text: tweet.text,
+    date: new Date(tweet.createdAt).toISOString(),
+    link: tweet.url || `https://x.com/${tweet.author?.userName}/status/${tweet.id}`,
+    images,
+    urlMap,
+    quotedTweet: tweet.quoted_tweet ? {
+      username: tweet.quoted_tweet.author?.userName,
+      text: tweet.quoted_tweet.text,
+      link: tweet.quoted_tweet.url,
+    } : null,
+  };
+}

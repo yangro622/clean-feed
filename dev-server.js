@@ -16,6 +16,7 @@ if (fs.existsSync(envPath)) {
 
 const feedHandler = require('./api/feed.js');
 const feedStreamHandler = require('./api/feed-stream.js');
+const feedSyncHandler = require('./api/feed-sync.js');
 const balanceHandler = require('./api/balance.js');
 
 const BASE_PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
@@ -56,6 +57,30 @@ const server = http.createServer(async (req, res) => {
       await balanceHandler(req, res);
     } catch (err) {
       console.error('Balance API error:', err);
+      res.status(500).json({ error: err.message });
+    }
+    return;
+  }
+
+  // Feed sync API route (with query params)
+  if (req.url.startsWith('/api/feed-sync')) {
+    // Parse query params
+    const url = new URL(req.url, `http://localhost`);
+    req.query = Object.fromEntries(url.searchParams);
+
+    res.status = (code) => {
+      res.statusCode = code;
+      return res;
+    };
+    res.json = (data) => {
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(data));
+    };
+
+    try {
+      await feedSyncHandler(req, res);
+    } catch (err) {
+      console.error('Feed sync API error:', err);
       res.status(500).json({ error: err.message });
     }
     return;
