@@ -1,12 +1,66 @@
 {
   "updated": "2024-01-15T12:00:00.000Z",
-  "count": 8,
+  "count": 13,
   "posts": [
     {
       "username": "mock_text",
       "text": "This is a simple text-only post. No links, no media, just plain text.\n\nWith multiple paragraphs.",
       "date": "2024-01-15T11:30:00.000Z",
       "link": "https://x.com/mock_text/status/1001",
+      "images": [],
+      "urlMap": {},
+      "quotedTweet": null
+    },
+    {
+      "username": "mock_thread",
+      "text": "Thread: Clean Feed tips (1/5)",
+      "date": "2024-01-15T11:15:00.000Z",
+      "link": "https://x.com/mock_thread/status/2001",
+      "conversationId": "2001",
+      "images": [],
+      "urlMap": {},
+      "quotedTweet": null
+    },
+    {
+      "username": "mock_thread",
+      "text": "Thread: Clean Feed tips (2/5)",
+      "date": "2024-01-15T11:05:00.000Z",
+      "link": "https://x.com/mock_thread/status/2002",
+      "conversationId": "2001",
+      "inReplyToStatusId": "2001",
+      "images": [],
+      "urlMap": {},
+      "quotedTweet": null
+    },
+    {
+      "username": "mock_thread",
+      "text": "Thread: Clean Feed tips (3/5)",
+      "date": "2024-01-15T10:55:00.000Z",
+      "link": "https://x.com/mock_thread/status/2003",
+      "conversationId": "2001",
+      "inReplyToStatusId": "2002",
+      "images": [],
+      "urlMap": {},
+      "quotedTweet": null
+    },
+    {
+      "username": "mock_thread",
+      "text": "Thread: Clean Feed tips (4/5)",
+      "date": "2024-01-15T10:45:00.000Z",
+      "link": "https://x.com/mock_thread/status/2004",
+      "conversationId": "2001",
+      "inReplyToStatusId": "2003",
+      "images": [],
+      "urlMap": {},
+      "quotedTweet": null
+    },
+    {
+      "username": "mock_thread",
+      "text": "Thread: Clean Feed tips (5/5)",
+      "date": "2024-01-15T10:35:00.000Z",
+      "link": "https://x.com/mock_thread/status/2005",
+      "conversationId": "2001",
+      "inReplyToStatusId": "2004",
       "images": [],
       "urlMap": {},
       "quotedTweet": null
@@ -89,9 +143,9 @@
     }
   ],
   "_meta": {
-    "tweetsFetched": 8,
+    "tweetsFetched": 13,
     "estimatedCost": "$0.0000",
-    "accountsProcessed": 8,
-    "accounts": ["mock_text", "mock_image", "mock_gallery", "mock_link", "mock_quote", "mock_mentions", "mock_video", "mock_long"]
+    "accountsProcessed": 9,
+    "accounts": ["mock_text", "mock_thread", "mock_image", "mock_gallery", "mock_link", "mock_quote", "mock_mentions", "mock_video", "mock_long"]
   }
 }

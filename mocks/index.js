@@ -59,14 +59,22 @@ function getMockFeedSync({ since, until, cursor } = {}) {
       const post = basePosts[i];
       const hoursAgo = day * 24 + i * 3; // Spread posts 3 hours apart
       const postDate = new Date(today - hoursAgo * 60 * 60 * 1000);
+      const linkId = post.link?.split('/status/')[1];
+      const syntheticId = linkId ? `${linkId}_d${day}` : `sync_${day}_${i}`;
+      const syntheticConversationId = post.conversationId ? `${post.conversationId}_d${day}` : null;
+      const syntheticInReplyTo = post.inReplyToStatusId
+        ? `${post.inReplyToStatusId}_d${day}`
+        : (post.inReplyToId ? `${post.inReplyToId}_d${day}` : null);
 
       allPosts.push({
-        id: `sync_${day}_${i}`,
+        id: syntheticId,
         platform: 'twitter',
         username: post.username,
         text: post.text,
         date: postDate.toISOString(),
-        link: post.link.replace('/status/', `/status/sync_${day}_`),
+        link: post.link,
+        conversationId: syntheticConversationId,
+        inReplyToStatusId: syntheticInReplyTo,
         images: post.images || [],
         urlMap: post.urlMap || {},
         quotedTweet: post.quotedTweet || null,

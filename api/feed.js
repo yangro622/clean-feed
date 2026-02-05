@@ -86,21 +86,33 @@ module.exports = async (req, res) => {
               .map(m => m.media_url_https);
 
             // Extract URL mappings (t.co -> real URL)
-            const urlMap = {};
-            (tweet.entities?.urls || []).forEach(u => {
-              urlMap[u.url] = u.expanded_url || u.url;
-            });
+          const urlMap = {};
+          (tweet.entities?.urls || []).forEach(u => {
+            urlMap[u.url] = u.expanded_url || u.url;
+          });
 
-            allPosts.push({
-              username: tweet.author?.userName || username,
-              text: tweet.text,
-              date,
-              link: tweet.url || `https://x.com/${username}/status/${tweet.id}`,
-              images,
-              videos,
-              urlMap,
-              quotedTweet: tweet.quoted_tweet ? {
-                username: tweet.quoted_tweet.author?.userName,
+          const conversationId = tweet.conversation_id || tweet.conversationId || tweet.conversation_id_str || tweet.conversationIdStr || null;
+          const inReplyToStatusId =
+            tweet.in_reply_to_status_id ||
+            tweet.in_reply_to_id ||
+            tweet.inReplyToId ||
+            tweet.inReplyToStatusId ||
+            tweet.in_reply_to_status_id_str ||
+            tweet.inReplyToStatusIdStr ||
+            null;
+
+          allPosts.push({
+            username: tweet.author?.userName || username,
+            text: tweet.text,
+            date,
+            link: tweet.url || `https://x.com/${username}/status/${tweet.id}`,
+            conversationId,
+            inReplyToStatusId,
+            images,
+            videos,
+            urlMap,
+            quotedTweet: tweet.quoted_tweet ? {
+              username: tweet.quoted_tweet.author?.userName,
                 text: tweet.quoted_tweet.text,
                 link: tweet.quoted_tweet.url,
               } : null,

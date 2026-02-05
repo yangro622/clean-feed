@@ -108,11 +108,23 @@ module.exports = async (req, res) => {
             urlMap[u.url] = u.expanded_url || u.url;
           });
 
+          const conversationId = tweet.conversation_id || tweet.conversationId || tweet.conversation_id_str || tweet.conversationIdStr || null;
+          const inReplyToStatusId =
+            tweet.in_reply_to_status_id ||
+            tweet.in_reply_to_id ||
+            tweet.inReplyToId ||
+            tweet.inReplyToStatusId ||
+            tweet.in_reply_to_status_id_str ||
+            tweet.inReplyToStatusIdStr ||
+            null;
+
           const post = {
             username: tweet.author?.userName || username,
             text: tweet.text,
             date,
             link: tweet.url || `https://x.com/${username}/status/${tweet.id}`,
+            conversationId,
+            inReplyToStatusId,
             images,
             videos,
             urlMap,

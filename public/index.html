@@ -787,6 +787,129 @@
       `;
     }
 
+    function getConversationId(tweet) {
+      return tweet.conversationId || tweet.conversation_id || null;
+    }
+
+    function getInReplyToId(tweet) {
+      return (
+        tweet.inReplyToStatusId ||
+        tweet.inReplyToId ||
+        tweet.in_reply_to_status_id ||
+        tweet.in_reply_to_id ||
+        null
+      );
+    }
+
+    function buildThreadRenderItems(tweets) {
+      const byConversation = new Map();
+      for (const tweet of tweets) {
+        const conversationId = getConversationId(tweet);
+        if (!conversationId) continue;
+        const key = String(conversationId);
+        if (!byConversation.has(key)) byConversation.set(key, []);
+        byConversation.get(key).push(tweet);
+      }
+
+      const threadMetaByRootId = new Map();
+      const hiddenReplyIds = new Set();
+
+      const buildThreadChain = (items, root) => {
+        const rootId = String(root.id);
+        const rootAuthor = root.username;
+        const replies = items.filter(item =>
+          item.id !== root.id &&
+          item.username === rootAuthor &&
+          getInReplyToId(item)
+        );
+
+        const byParent = new Map();
+        for (const reply of replies) {
+          const parentId = String(getInReplyToId(reply));
+          if (!byParent.has(parentId)) byParent.set(parentId, []);
+          byParent.get(parentId).push(reply);
+        }
+
+        const chain = [root];
+        const visited = new Set([rootId]);
+        let current = root;
+        while (true) {
+          const children = (byParent.get(String(current.id)) || [])
+            .filter(reply => !visited.has(String(reply.id)))
+            .sort((a, b) => {
+              const dateDiff = new Date(a.date) - new Date(b.date);
+              if (dateDiff !== 0) return dateDiff;
+              return String(a.id || '').localeCompare(String(b.id || ''));
+            });
+
+          if (children.length === 0) break;
+          const next = children[0];
+          chain.push(next);
+          visited.add(String(next.id));
+          current = next;
+        }
+
+        return chain;
+      };
+
+      for (const [conversationId, items] of byConversation) {
+        if (items.length < 2) continue;
+
+        const root =
+          items.find(item => String(item.id) === String(conversationId)) ||
+          items.find(item => !getInReplyToId(item));
+
+        if (!root || !root.username) continue;
+
+        const chain = buildThreadChain(items, root);
+        if (chain.length < 2) continue;
+
+        chain.slice(1).forEach(reply => hiddenReplyIds.add(reply.id));
+
+        const combinedText = chain
+          .map((item, index) => {
+            if (!item.text) return null;
+            return index === 0 ? item.text : `↳ ${item.text}`;
+          })
+          .filter(Boolean)
+          .join('\n\n');
+
+        const combinedUrlMap = {};
+        for (const item of chain) {
+          if (item.urlMap) {
+            Object.assign(combinedUrlMap, item.urlMap);
+          }
+        }
+
+        threadMetaByRootId.set(String(root.id), {
+          combinedText,
+          combinedUrlMap,
+        });
+      }
+
+      const items = [];
+      for (const tweet of tweets) {
+        const isReply = Boolean(getInReplyToId(tweet));
+        if (hiddenReplyIds.has(tweet.id)) continue;
+
+        const meta = threadMetaByRootId.get(String(tweet.id)) || null;
+        if (isReply && !meta) {
+          // Drop non-thread replies (including replies to other people)
+          continue;
+        }
+
+        if (meta) {
+          items.push({
+            post: { ...tweet, text: meta.combinedText, urlMap: meta.combinedUrlMap },
+          });
+        } else {
+          items.push({ post: tweet });
+        }
+      }
+
+      return items;
+    }
+
     function renderPost(post, isNew = false) {
       const time = timeAgo(new Date(post.date));
       const images = (post.images || []).map(url =>
@@ -868,6 +991,8 @@
         return;
       }
 
+      const threadItems = buildThreadRenderItems(tweets);
+
       // Get lastViewedTimestamp from sync state
       const syncState = await getSyncState();
       const lastViewed = syncState.lastViewedTimestamp ? new Date(syncState.lastViewedTimestamp) : null;
@@ -875,8 +1000,8 @@
       // Find where to insert the read line (first tweet older than lastViewed)
       let readLineIndex = -1;
       if (lastViewed && !options.skipReadLine) {
-        for (let i = 0; i < tweets.length; i++) {
-          const tweetDate = new Date(tweets[i].date);
+        for (let i = 0; i < threadItems.length; i++) {
+          const tweetDate = new Date(threadItems[i].post.date);
           if (tweetDate <= lastViewed) {
             readLineIndex = i;
             break;
@@ -886,7 +1011,7 @@
 
       // Build HTML
       const htmlParts = [];
-      for (let i = 0; i < tweets.length; i++) {
+      for (let i = 0; i < threadItems.length; i++) {
         // Insert read line before the first "seen" tweet
         if (i === readLineIndex && readLineIndex > 0) {
           const newCount = readLineIndex;
@@ -898,7 +1023,8 @@
           `);
         }
         const isNew = options.highlightNew && i < (options.newCount || 0);
-        htmlParts.push(renderPost(tweets[i], isNew));
+        const item = threadItems[i];
+        htmlParts.push(renderPost(item.post, isNew));
       }
 
       feedEl.innerHTML = htmlParts.join('');

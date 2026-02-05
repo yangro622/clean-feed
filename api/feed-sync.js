@@ -54,9 +54,8 @@ module.exports = async (req, res) => {
       query += ` until:${formatted}`;
     }
 
-    // Exclude retweets and replies
+    // Exclude retweets
     query += ' -filter:retweets';
-    query += ' -filter:replies';
 
     console.log(`[feed-sync] query="${query.substring(0, 100)}..."`);
 
@@ -158,6 +157,28 @@ function formatDateForTwitter(date) {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}_${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}_UTC`;
 }
 
+function getConversationId(tweet) {
+  return (
+    tweet.conversation_id ||
+    tweet.conversationId ||
+    tweet.conversation_id_str ||
+    tweet.conversationIdStr ||
+    null
+  );
+}
+
+function getInReplyToStatusId(tweet) {
+  return (
+    tweet.in_reply_to_status_id ||
+    tweet.in_reply_to_id ||
+    tweet.inReplyToId ||
+    tweet.inReplyToStatusId ||
+    tweet.in_reply_to_status_id_str ||
+    tweet.inReplyToStatusIdStr ||
+    null
+  );
+}
+
 // Transform API tweet to our post format
 function transformTweet(tweet) {
   if (!tweet) return null;
@@ -181,6 +202,8 @@ function transformTweet(tweet) {
     text: tweet.text,
     date: new Date(tweet.createdAt).toISOString(),
     link: tweet.url || `https://x.com/${tweet.author?.userName}/status/${tweet.id}`,
+    conversationId: getConversationId(tweet),
+    inReplyToStatusId: getInReplyToStatusId(tweet),
     images,
     urlMap,
     quotedTweet: tweet.quoted_tweet ? {
