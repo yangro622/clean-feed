@@ -841,6 +841,29 @@
       return tweets[tweets.length - 1].date;
     }
 
+    async function getNewestTimestampForPlatform(platform) {
+      const tweets = await getAllTweets();
+      if (tweets.length === 0) return null;
+      for (const tweet of tweets) {
+        if (getPlatformKey(tweet.platform, tweet.link) === platform) {
+          return tweet.date;
+        }
+      }
+      return null;
+    }
+
+    async function getOldestTimestampForPlatform(platform) {
+      const tweets = await getAllTweets();
+      if (tweets.length === 0) return null;
+      for (let i = tweets.length - 1; i >= 0; i--) {
+        const tweet = tweets[i];
+        if (getPlatformKey(tweet.platform, tweet.link) === platform) {
+          return tweet.date;
+        }
+      }
+      return null;
+    }
+
     async function pruneOldTweets(maxDays) {
       await openDB();
       const cutoff = new Date(Date.now() - maxDays * 24 * 60 * 60 * 1000);
@@ -1554,7 +1577,7 @@
     }
 
     async function loadNewer() {
-      const newestTimestamp = await getNewestTimestamp();
+      const newestTimestamp = await getNewestTimestampForPlatform('x');
       if (!newestTimestamp) {
         // No existing tweets, do initial sync
         return await initialSync(CONFIG.INITIAL_DAYS);
@@ -1579,7 +1602,7 @@
     }
 
     async function loadOlder() {
-      const oldestTimestamp = await getOldestTimestamp();
+      const oldestTimestamp = await getOldestTimestampForPlatform('x');
       if (!oldestTimestamp) return { tweets: [], hasMore: false };
 
       // Check if we've hit the retention limit
@@ -1913,9 +1936,25 @@
         return;
       }
 
+      const getOldestDateForPlatform = (posts, platformKey) => {
+        for (let i = posts.length - 1; i >= 0; i--) {
+          const post = posts[i];
+          if (getPlatformKey(post.platform, post.link) === platformKey) {
+            return new Date(post.date);
+          }
+        }
+        return null;
+      };
+
+      const oldestXDate = getOldestDateForPlatform(tweets, 'x');
+      if (!oldestXDate) {
+        footer.style.display = 'none';
+        canLoadOlder = false;
+        return;
+      }
+
       footer.style.display = 'block';
-      const oldestDate = new Date(tweets[tweets.length - 1].date);
-      dateRange.textContent = `Showing posts since ${formatDateShort(oldestDate)}`;
+      dateRange.textContent = `Showing posts since ${formatDateShort(oldestXDate)}`;
 
       // Reset pull styling
       footer.classList.remove('pulling');
@@ -1923,10 +1962,14 @@
 
       // Check if we're at the retention limit
       const retentionLimit = new Date(Date.now() - CONFIG.MAX_RETENTION_DAYS * 24 * 60 * 60 * 1000);
-      if (oldestDate <= retentionLimit) {
+      if (oldestXDate <= retentionLimit) {
         canLoadOlder = false;
         footer.classList.add('at-limit');
         footer.querySelector('.swipe-hint').textContent = `Reached ${CONFIG.MAX_RETENTION_DAYS}-day limit`;
+      } else {
+        canLoadOlder = true;
+        footer.classList.remove('at-limit');
+        footer.querySelector('.swipe-hint').textContent = 'Pull up for older posts';
       }
     }
 

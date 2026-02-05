@@ -1,7 +1,4 @@
-// Accounts from environment variable (comma-separated) or fallback to file
-const accounts = process.env.TWITTER_ACCOUNTS
-  ? process.env.TWITTER_ACCOUNTS.split(',').map(s => s.trim())
-  : require('../accounts.json');
+const { getAccountCount, getTwitterHandles } = require('../lib/accounts');
 
 const COST_PER_1000_TWEETS = 0.15;
 
@@ -61,12 +58,20 @@ module.exports = async (req, res) => {
   }
 
   const startTime = Date.now();
-  console.log(`[stream] START accounts=${accounts.length}`);
+  const accounts = getTwitterHandles();
+  console.log(`[stream] START accounts=${getAccountCount()}`);
 
   const apiKey = process.env.TWITTERAPI_IO_KEY;
-  if (!apiKey) {
+  if (accounts.length > 0 && !apiKey) {
     console.log(`[stream] ERROR no_api_key`);
     res.write(`data: ${JSON.stringify({ type: 'error', message: 'API key not configured' })}\n\n`);
+    res.end();
+    return;
+  }
+
+  if (accounts.length === 0) {
+    console.log('[stream] ERROR no_accounts');
+    res.write(`data: ${JSON.stringify({ type: 'error', message: 'No accounts configured' })}\n\n`);
     res.end();
     return;
   }

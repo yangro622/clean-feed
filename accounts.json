@@ -1,7 +1,45 @@
 [
-  "karpathy",
-  "naval",
-  "waitbutwhy",
-  "ilyasut",
-  "bcherny"
+  {
+    "person": "Andrej Karpathy",
+    "accounts": [
+      { "platform": "x", "handle": "karpathy" },
+      { "platform": "youtube", "handle": "andrejkarpathy", "channelId": "UCXUPKJO5MZQN11PqgIvyuvQ" }
+    ]
+  },
+  {
+    "person": "3Blue1Brown",
+    "accounts": [
+      { "platform": "youtube", "handle": "3blue1brown", "channelId": "UCYO_jab_esuFRV4b17AJtAw" }
+    ]
+  },
+  {
+    "person": "Welch Labs",
+    "accounts": [
+      { "platform": "youtube", "handle": "WelchLabsVideo", "channelId": "UConVfxXodg78Tzh5nNu85Ew" }
+    ]
+  },
+  {
+    "person": "Naval",
+    "accounts": [
+      { "platform": "x", "handle": "naval" }
+    ]
+  },
+  {
+    "person": "Wait But Why",
+    "accounts": [
+      { "platform": "x", "handle": "waitbutwhy" }
+    ]
+  },
+  {
+    "person": "Ilya Sutskever",
+    "accounts": [
+      { "platform": "x", "handle": "ilyasut" }
+    ]
+  },
+  {
+    "person": "Boris Cherny",
+    "accounts": [
+      { "platform": "x", "handle": "bcherny" }
+    ]
+  }
 ]

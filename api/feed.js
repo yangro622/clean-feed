@@ -1,10 +1,11 @@
-// Accounts to follow (edit accounts.json to customize)
-const accounts = require('../accounts.json');
+const { getAccountCount, getAccountGroups, getTwitterHandles, getYouTubeAccounts } = require('../lib/accounts');
+const { fetchYouTubePosts } = require('../lib/youtube');
 
 // Cost control settings
 const COST_PER_1000_TWEETS = 0.15; // $0.15 per 1,000 tweets
 const MAX_COST_PER_REQUEST = 1.00; // $1.00 max per request
 const MAX_TWEETS_PER_REQUEST = Math.floor((MAX_COST_PER_REQUEST / COST_PER_1000_TWEETS) * 1000); // ~6,666 tweets
+const YOUTUBE_LOOKBACK_DAYS = 30;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,14 +18,22 @@ module.exports = async (req, res) => {
   }
 
   const startTime = Date.now();
-  console.log(`[feed] START accounts=${accounts.length}`);
+  const twitterAccounts = getTwitterHandles();
+  const youtubeAccounts = getYouTubeAccounts();
+  const accountCount = getAccountCount();
+  console.log(`[feed] START accounts=${accountCount}`);
 
   res.setHeader('Cache-Control', 's-maxage=86400'); // 24 hour CDN cache
 
   const apiKey = process.env.TWITTERAPI_IO_KEY;
-  if (!apiKey) {
-    console.log(`[feed] ERROR no_api_key`);
+  if (twitterAccounts.length > 0 && !apiKey) {
+    console.log('[feed] ERROR no_api_key');
     return res.status(500).json({ error: 'TWITTERAPI_IO_KEY not configured' });
+  }
+
+  if (twitterAccounts.length === 0 && youtubeAccounts.length === 0) {
+    console.log('[feed] ERROR no_accounts');
+    return res.status(400).json({ error: 'No accounts configured' });
   }
 
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -35,8 +44,8 @@ module.exports = async (req, res) => {
     const fetchResults = []; // Track per-account results
 
     // Fetch tweets for each account
-    for (let i = 0; i < accounts.length; i++) {
-      const username = accounts[i];
+    for (let i = 0; i < twitterAccounts.length; i++) {
+      const username = twitterAccounts[i];
 
       // Cost safety check
       if (totalTweetsFetched >= MAX_TWEETS_PER_REQUEST) {
@@ -104,7 +113,7 @@ module.exports = async (req, res) => {
           allPosts.push({
             username: tweet.author?.userName || username,
             text: tweet.text,
-            date,
+            date: date.toISOString(),
             link: tweet.url || `https://x.com/${username}/status/${tweet.id}`,
             conversationId,
             inReplyToStatusId,
@@ -125,15 +134,23 @@ module.exports = async (req, res) => {
       }
     }
 
+    if (youtubeAccounts.length > 0) {
+      const youtubePosts = await fetchYouTubePosts({
+        accounts: youtubeAccounts,
+        lookbackDays: YOUTUBE_LOOKBACK_DAYS,
+      });
+      allPosts.push(...youtubePosts);
+    }
+
     // Sort by date, newest first
-    allPosts.sort((a, b) => b.date - a.date);
+    allPosts.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     // Calculate estimated cost
     const estimatedCost = (totalTweetsFetched / 1000) * COST_PER_1000_TWEETS;
 
     const duration = Date.now() - startTime;
     const successCount = fetchResults.filter(r => r.status === 'ok').length;
-    console.log(`[feed] DONE tweets=${totalTweetsFetched} posts=${allPosts.length} cost=$${estimatedCost.toFixed(4)} accounts=${successCount}/${accounts.length} duration=${duration}ms`);
+    console.log(`[feed] DONE tweets=${totalTweetsFetched} posts=${allPosts.length} cost=$${estimatedCost.toFixed(4)} accounts=${successCount}/${twitterAccounts.length} duration=${duration}ms`);
 
     res.json({
       updated: new Date().toISOString(),
@@ -142,8 +159,8 @@ module.exports = async (req, res) => {
       _meta: {
         tweetsFetched: totalTweetsFetched,
         estimatedCost: `$${estimatedCost.toFixed(4)}`,
-        accountsProcessed: accounts.length,
-        accounts: accounts,
+        accountsProcessed: accountCount,
+        accounts: getAccountGroups(),
       }
     });
   } catch (err) {

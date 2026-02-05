@@ -1,5 +1,15 @@
 [
-  "naval",
-  "paulg",
-  "sama"
+  {
+    "person": "Example Creator",
+    "accounts": [
+      { "platform": "x", "handle": "example" },
+      { "platform": "youtube", "handle": "example", "channelId": "UCxxxxxxxxxxxxxxxxxxxxx" }
+    ]
+  },
+  {
+    "person": "Sample X Only",
+    "accounts": [
+      { "platform": "x", "handle": "sample" }
+    ]
+  }
 ]
