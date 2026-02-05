@@ -45,6 +45,12 @@
       flex-wrap: wrap;
     }
 
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     h1 {
       font-size: 20px;
       font-weight: 700;
@@ -89,6 +95,99 @@
       font-weight: 700;
       line-height: 1;
       vertical-align: middle;
+    }
+
+    .actions-menu {
+      position: relative;
+    }
+
+    .actions-trigger {
+      background: #16181c;
+      border: 1px solid #2f3336;
+      color: #e7e9ea;
+      padding: 6px 10px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s, background 0.2s;
+      letter-spacing: 1px;
+    }
+
+    .actions-trigger:hover {
+      border-color: #1d9bf0;
+      color: #1d9bf0;
+    }
+
+    .actions-trigger:focus-visible {
+      outline: 2px solid #1d9bf0;
+      outline-offset: 2px;
+    }
+
+    .actions-popover {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      min-width: 180px;
+      background: #0f1115;
+      border: 1px solid #2f3336;
+      border-radius: 12px;
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
+      padding: 6px;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-4px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 10;
+    }
+
+    .actions-menu.open .actions-popover {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+
+    .action-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      color: #e7e9ea;
+      font-size: 13px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .action-item:hover {
+      background: #16181c;
+      color: #1d9bf0;
+    }
+
+    .action-item.danger {
+      color: #f4212e;
+    }
+
+    .action-item.danger:hover {
+      background: #1a0b0d;
+      color: #f4212e;
+    }
+
+    .action-item:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .action-item.web-only {
+      display: block;
+    }
+
+    @media (max-width: 640px) {
+      .action-item.web-only {
+        display: none;
+      }
     }
 
     .meta {
@@ -256,30 +355,6 @@
       text-align: center;
       padding: 60px 20px;
       color: #71767b;
-    }
-
-    .refresh-btn {
-      display: block;
-      width: 100%;
-      padding: 12px;
-      margin-top: 16px;
-      background: #1d9bf0;
-      color: #fff;
-      border: none;
-      border-radius: 9999px;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .refresh-btn:hover {
-      background: #1a8cd8;
-    }
-
-    .refresh-btn:disabled {
-      background: #1d9bf0;
-      opacity: 0.5;
-      cursor: not-allowed;
     }
 
     .following-modal {
@@ -500,34 +575,6 @@
       color: #fff;
     }
 
-    /* Action buttons container */
-    .action-buttons {
-      display: flex;
-      gap: 8px;
-      margin-top: 16px;
-    }
-
-    .action-buttons .refresh-btn {
-      flex: 1;
-      margin-top: 0;
-    }
-
-    .refresh-btn.secondary {
-      background: #2f3336;
-    }
-
-    .refresh-btn.secondary:hover {
-      background: #3a3f44;
-    }
-
-    .refresh-btn.danger {
-      background: #f4212e;
-    }
-
-    .refresh-btn.danger:hover {
-      background: #dc1d28;
-    }
-
     /* Debug panel */
     .debug-panel {
       display: none; /* Hidden by default in production */
@@ -559,9 +606,27 @@
   <header>
     <div class="header-row">
       <h1>Clean Feed</h1>
-      <button class="following-trigger" id="following-trigger" type="button" aria-haspopup="dialog" aria-expanded="false">
-        Following <span class="following-count" id="following-count">0</span>
-      </button>
+      <div class="header-actions">
+        <button class="following-trigger" id="following-trigger" type="button" aria-haspopup="dialog" aria-expanded="false">
+          Following <span class="following-count" id="following-count">0</span>
+        </button>
+        <div class="actions-menu" id="actions-menu">
+          <button class="actions-trigger" id="actions-trigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Actions" title="Actions">
+            ...
+          </button>
+          <div class="actions-popover" id="actions-popover" role="menu" aria-label="Actions" aria-hidden="true">
+            <button class="action-item web-only" id="refresh" type="button" role="menuitem" onclick="loadFeed(true)">
+              Refresh
+            </button>
+            <button class="action-item web-only" id="load-older-btn" type="button" role="menuitem" onclick="handleLoadOlderClick()">
+              Load older
+            </button>
+            <button class="action-item danger" id="clear-db-btn" type="button" role="menuitem" onclick="clearDatabase()">
+              Clear cache
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
     <p class="tagline">Tweets you care about. Nothing else.</p>
     <p class="meta" id="status">Loading...</p>
@@ -576,12 +641,6 @@
       <div class="date-range" id="date-range"></div>
       <div class="swipe-hint">Swipe up for older posts</div>
     </div>
-  </div>
-
-  <div class="action-buttons">
-    <button class="refresh-btn" id="refresh" onclick="loadFeed(true)">Refresh (Load Newer)</button>
-    <button class="refresh-btn secondary" id="load-older-btn" onclick="handleLoadOlderClick()">Load Older</button>
-    <button class="refresh-btn danger" id="clear-db-btn" onclick="clearDatabase()">Clear IndexedDB</button>
   </div>
 
   <!-- Debug panel for development -->
@@ -1137,6 +1196,63 @@
       });
     }
 
+    function openActionsMenu() {
+      const menu = document.getElementById('actions-menu');
+      const trigger = document.getElementById('actions-trigger');
+      const popover = document.getElementById('actions-popover');
+      if (!menu || !trigger || !popover) return;
+
+      menu.classList.add('open');
+      trigger.setAttribute('aria-expanded', 'true');
+      popover.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeActionsMenu() {
+      const menu = document.getElementById('actions-menu');
+      const trigger = document.getElementById('actions-trigger');
+      const popover = document.getElementById('actions-popover');
+      if (!menu || !trigger || !popover) return;
+
+      menu.classList.remove('open');
+      trigger.setAttribute('aria-expanded', 'false');
+      popover.setAttribute('aria-hidden', 'true');
+    }
+
+    function setupActionsMenu() {
+      const menu = document.getElementById('actions-menu');
+      const trigger = document.getElementById('actions-trigger');
+      const popover = document.getElementById('actions-popover');
+      if (!menu || !trigger || !popover) return;
+
+      trigger.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (menu.classList.contains('open')) {
+          closeActionsMenu();
+        } else {
+          openActionsMenu();
+        }
+      });
+
+      popover.addEventListener('click', (event) => {
+        const actionButton = event.target.closest('.action-item');
+        if (actionButton) {
+          closeActionsMenu();
+        }
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!menu.contains(event.target) && menu.classList.contains('open')) {
+          closeActionsMenu();
+        }
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && menu.classList.contains('open')) {
+          closeActionsMenu();
+        }
+      });
+    }
+
     function renderDevStats(meta, source = 'local') {
       const stats = document.getElementById('dev-stats');
       const tweets = meta?.tweetsFetched || 0;
@@ -1671,7 +1787,7 @@ Unique usernames: ${[...new Set(tweets.map(t => t.username))].join(', ')}`;
         await updateDebugPanel();
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Load Older';
+      btn.textContent = 'Load older';
       }
     }
 
@@ -1681,6 +1797,7 @@ Unique usernames: ${[...new Set(tweets.map(t => t.username))].join(', ')}`;
     // Set up gestures immediately (don't wait for feed to load)
     setupGestures();
     setupFollowingModal();
+    setupActionsMenu();
 
     // Load feed and update UI
     loadFeed().then(async () => {
