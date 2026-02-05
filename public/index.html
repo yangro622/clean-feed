@@ -514,27 +514,27 @@
     }
 
     /* Pull-to-refresh indicator */
-    .pull-indicator {
-      text-align: center;
-      padding: 16px;
-      color: #71767b;
-      font-size: 14px;
-      transition: transform 0.2s, opacity 0.2s;
-      transform: translateY(-100%);
-      opacity: 0;
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
+    .pull-spacer {
+      height: 0;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: height 0.2s ease;
     }
 
-    .pull-indicator.visible {
-      transform: translateY(0);
-      opacity: 1;
+    .pull-indicator {
+      text-align: center;
+      padding: 12px 16px;
+      color: #71767b;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.2s;
     }
 
     .pull-indicator.refreshing {
       color: #1d9bf0;
+      opacity: 1;
     }
 
     /* Load older footer */
@@ -545,6 +545,7 @@
       font-size: 14px;
       border-top: 1px solid #2f3336;
       margin-top: 16px;
+      transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
     }
 
     .load-older-footer .date-range {
@@ -554,6 +555,16 @@
     .load-older-footer .swipe-hint {
       font-size: 12px;
       opacity: 0.7;
+    }
+
+    .load-older-footer.pulling {
+      background: #0f1115;
+      border-color: #1d9bf0;
+    }
+
+    .load-older-footer.pulling .swipe-hint {
+      color: #1d9bf0;
+      opacity: 1;
     }
 
     .load-older-footer.loading {
@@ -682,7 +693,9 @@
   </header>
 
   <div class="feed-container" id="feed-container">
-    <div class="pull-indicator" id="pull-indicator">Pull to refresh</div>
+    <div class="pull-spacer" id="pull-spacer">
+      <div class="pull-indicator" id="pull-indicator">Pull to refresh</div>
+    </div>
     <main id="feed">
       <div class="loading">Fetching posts...</div>
     </main>
@@ -1701,6 +1714,7 @@
     let touchStartY = 0;
     let touchEndY = 0;
     let isPulling = false;
+    let isPullingOlder = false;
     let isRefreshing = false;
     let isLoadingOlder = false;
     let canLoadOlder = true;
@@ -1708,6 +1722,29 @@
     function setupGestures() {
       const container = document.getElementById('feed-container');
       const pullIndicator = document.getElementById('pull-indicator');
+      const pullSpacer = document.getElementById('pull-spacer');
+      const loadOlderFooter = document.getElementById('load-older-footer');
+      const pullRefreshThreshold = 80;
+      const loadOlderThreshold = 100;
+
+      function resetPullIndicator() {
+        if (!isRefreshing) {
+          pullSpacer.style.height = '0px';
+          pullIndicator.style.opacity = 0;
+        }
+        isPulling = false;
+      }
+
+      function resetLoadOlderIndicator() {
+        isPullingOlder = false;
+        if (!loadOlderFooter) return;
+        loadOlderFooter.classList.remove('pulling');
+        loadOlderFooter.style.transform = '';
+        const hint = loadOlderFooter.querySelector('.swipe-hint');
+        if (hint && canLoadOlder && !loadOlderFooter.classList.contains('at-limit') && !isLoadingOlder) {
+          hint.textContent = 'Pull up for older posts';
+        }
+      }
 
       container.addEventListener('touchstart', (e) => {
         touchStartY = e.touches[0].clientY;
@@ -1718,43 +1755,74 @@
 
         touchEndY = e.touches[0].clientY;
         const deltaY = touchEndY - touchStartY;
+        const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
 
         // Pull-to-refresh: at top of page, pulling down
         if (window.scrollY === 0 && deltaY > 0) {
           isPulling = true;
-          const progress = Math.min(deltaY / 100, 1);
-          pullIndicator.style.opacity = progress;
-          pullIndicator.style.transform = `translateY(${Math.min(deltaY * 0.5, 50)}px)`;
+          const height = Math.min(deltaY * 0.5, 70);
+          pullSpacer.style.height = `${height}px`;
+          pullIndicator.style.opacity = Math.min(deltaY / 60, 1);
 
-          if (deltaY > 80) {
+          if (deltaY > pullRefreshThreshold) {
             pullIndicator.textContent = 'Release to refresh';
           } else {
             pullIndicator.textContent = 'Pull to refresh';
           }
+        } else if (isPulling) {
+          resetPullIndicator();
+        }
+
+        // Pull-up to load older: near bottom, pulling up
+        if (scrollBottom < 200 && deltaY < 0 && canLoadOlder && loadOlderFooter && !loadOlderFooter.classList.contains('at-limit')) {
+          isPullingOlder = true;
+          const pullUp = Math.abs(deltaY);
+          const progress = Math.min(pullUp / loadOlderThreshold, 1);
+          const hint = loadOlderFooter.querySelector('.swipe-hint');
+          loadOlderFooter.classList.add('pulling');
+          loadOlderFooter.style.transform = `translateY(${Math.max(deltaY * 0.2, -20)}px)`;
+
+          if (hint) {
+            hint.textContent = progress >= 1 ? 'Release to load older' : 'Pull up for older posts';
+          }
+        } else if (isPullingOlder) {
+          resetLoadOlderIndicator();
         }
       }, { passive: true });
 
       container.addEventListener('touchend', async () => {
         const deltaY = touchEndY - touchStartY;
+        const pullUpDistance = touchStartY - touchEndY;
 
         // Pull-to-refresh triggered
-        if (isPulling && deltaY > 80 && !isRefreshing) {
+        if (isPulling && deltaY > pullRefreshThreshold && !isRefreshing) {
           isRefreshing = true;
           pullIndicator.textContent = 'Refreshing...';
           pullIndicator.classList.add('refreshing');
+          pullIndicator.style.opacity = 1;
+          pullSpacer.style.height = '56px';
 
           try {
             await handlePullToRefresh();
           } finally {
             isRefreshing = false;
             pullIndicator.classList.remove('refreshing');
+            pullSpacer.style.height = '0px';
+            pullIndicator.style.opacity = 0;
           }
         }
 
+        // Swipe up to load older - hard swipe near bottom
+        const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
+        if (pullUpDistance > loadOlderThreshold && scrollBottom < 200 && canLoadOlder && !isLoadingOlder) {
+          resetLoadOlderIndicator();
+          await handleLoadOlder();
+        } else {
+          resetLoadOlderIndicator();
+        }
+
         // Reset pull indicator
-        isPulling = false;
-        pullIndicator.style.opacity = 0;
-        pullIndicator.style.transform = 'translateY(-100%)';
+        resetPullIndicator();
         touchStartY = 0;
         touchEndY = 0;
       });
@@ -1769,16 +1837,7 @@
         lastScrollTop = currentScroll;
       }, { passive: true });
 
-      // Detect hard swipe up at bottom
-      container.addEventListener('touchend', async () => {
-        const deltaY = touchStartY - touchEndY; // Positive = swipe up
-
-        // Hard swipe up (>100px) near bottom of page
-        const scrollBottom = document.documentElement.scrollHeight - window.innerHeight - window.scrollY;
-        if (deltaY > 100 && scrollBottom < 200 && canLoadOlder && !isLoadingOlder) {
-          await handleLoadOlder();
-        }
-      });
+      // load older handled in touchend above
     }
 
     async function handlePullToRefresh() {
@@ -1828,7 +1887,7 @@
         } else if (result.tweets.length === 0) {
           footer.querySelector('.swipe-hint').textContent = 'No more posts';
         } else {
-          footer.querySelector('.swipe-hint').textContent = 'Swipe up for older posts';
+          footer.querySelector('.swipe-hint').textContent = 'Pull up for older posts';
         }
 
         const allTweets = await getAllTweets();
@@ -1857,6 +1916,10 @@
       footer.style.display = 'block';
       const oldestDate = new Date(tweets[tweets.length - 1].date);
       dateRange.textContent = `Showing posts since ${formatDateShort(oldestDate)}`;
+
+      // Reset pull styling
+      footer.classList.remove('pulling');
+      footer.style.transform = '';
 
       // Check if we're at the retention limit
       const retentionLimit = new Date(Date.now() - CONFIG.MAX_RETENTION_DAYS * 24 * 60 * 60 * 1000);
