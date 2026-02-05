@@ -1,6 +1,6 @@
 {
   "updated": "2024-01-15T12:00:00.000Z",
-  "count": 13,
+  "count": 15,
   "posts": [
     {
       "username": "mock_text",
@@ -9,7 +9,8 @@
       "link": "https://x.com/mock_text/status/1001",
       "images": [],
       "urlMap": {},
-      "quotedTweet": null
+      "quotedTweet": null,
+      "platform": "x"
     },
     {
       "username": "mock_thread",
@@ -18,6 +19,33 @@
       "link": "https://x.com/mock_thread/status/2001",
       "conversationId": "2001",
       "images": [],
+      "urlMap": {},
+      "quotedTweet": null,
+      "platform": "x"
+    },
+    {
+      "platform": "youtube",
+      "username": "mock_creator",
+      "text": "New video: Building a clean feed in 10 minutes.",
+      "date": "2024-01-15T07:30:00.000Z",
+      "link": "https://www.youtube.com/watch?v=mock12345",
+      "images": [],
+      "videos": [
+        "https://i.ytimg.com/vi/mock12345/hqdefault.jpg"
+      ],
+      "urlMap": {},
+      "quotedTweet": null
+    },
+    {
+      "platform": "youtube",
+      "username": "mock_video_lab",
+      "text": "Deep dive: Gesture UX for fast readers.",
+      "date": "2024-01-15T07:00:00.000Z",
+      "link": "https://www.youtube.com/watch?v=mock67890",
+      "images": [],
+      "videos": [
+        "https://i.ytimg.com/vi/mock67890/hqdefault.jpg"
+      ],
       "urlMap": {},
       "quotedTweet": null
     },
@@ -30,7 +58,8 @@
       "inReplyToStatusId": "2001",
       "images": [],
       "urlMap": {},
-      "quotedTweet": null
+      "quotedTweet": null,
+      "platform": "x"
     },
     {
       "username": "mock_thread",
@@ -41,7 +70,8 @@
       "inReplyToStatusId": "2002",
       "images": [],
       "urlMap": {},
-      "quotedTweet": null
+      "quotedTweet": null,
+      "platform": "x"
     },
     {
       "username": "mock_thread",
@@ -52,7 +82,8 @@
       "inReplyToStatusId": "2003",
       "images": [],
       "urlMap": {},
-      "quotedTweet": null
+      "quotedTweet": null,
+      "platform": "x"
     },
     {
       "username": "mock_thread",
@@ -63,7 +94,8 @@
       "inReplyToStatusId": "2004",
       "images": [],
       "urlMap": {},
-      "quotedTweet": null
+      "quotedTweet": null,
+      "platform": "x"
     },
     {
       "username": "mock_image",
@@ -74,7 +106,8 @@
         "https://picsum.photos/seed/mock1/600/400"
       ],
       "urlMap": {},
-      "quotedTweet": null
+      "quotedTweet": null,
+      "platform": "x"
     },
     {
       "username": "mock_gallery",
@@ -87,7 +120,8 @@
         "https://picsum.photos/seed/gallery3/600/400"
       ],
       "urlMap": {},
-      "quotedTweet": null
+      "quotedTweet": null,
+      "platform": "x"
     },
     {
       "username": "mock_link",
@@ -98,7 +132,8 @@
       "urlMap": {
         "https://t.co/abc123": "https://example.com/article/web-development-best-practices-2024"
       },
-      "quotedTweet": null
+      "quotedTweet": null,
+      "platform": "x"
     },
     {
       "username": "mock_quote",
@@ -111,7 +146,8 @@
         "username": "original_author",
         "text": "The best code is the code you don't have to write. Simplicity wins every time.",
         "link": "https://x.com/original_author/status/999"
-      }
+      },
+      "platform": "x"
     },
     {
       "username": "mock_mentions",
@@ -120,7 +156,8 @@
       "link": "https://x.com/mock_mentions/status/1006",
       "images": [],
       "urlMap": {},
-      "quotedTweet": null
+      "quotedTweet": null,
+      "platform": "x"
     },
     {
       "username": "mock_video",
@@ -128,9 +165,12 @@
       "date": "2024-01-15T08:30:00.000Z",
       "link": "https://x.com/mock_video/status/1007",
       "images": [],
-      "videos": ["https://picsum.photos/seed/video1/600/400"],
+      "videos": [
+        "https://picsum.photos/seed/video1/600/400"
+      ],
       "urlMap": {},
-      "quotedTweet": null
+      "quotedTweet": null,
+      "platform": "x"
     },
     {
       "username": "mock_long",
@@ -139,13 +179,104 @@
       "link": "https://x.com/mock_long/status/1008",
       "images": [],
       "urlMap": {},
-      "quotedTweet": null
+      "quotedTweet": null,
+      "platform": "x"
     }
   ],
   "_meta": {
-    "tweetsFetched": 13,
+    "tweetsFetched": 15,
     "estimatedCost": "$0.0000",
-    "accountsProcessed": 9,
-    "accounts": ["mock_text", "mock_thread", "mock_image", "mock_gallery", "mock_link", "mock_quote", "mock_mentions", "mock_video", "mock_long"]
+    "accountsProcessed": 11,
+    "accounts": [
+      {
+        "person": "mock_text",
+        "accounts": [
+          {
+            "platform": "x",
+            "handle": "mock_text"
+          }
+        ]
+      },
+      {
+        "person": "mock_thread",
+        "accounts": [
+          {
+            "platform": "x",
+            "handle": "mock_thread"
+          }
+        ]
+      },
+      {
+        "person": "mock_media",
+        "accounts": [
+          {
+            "platform": "x",
+            "handle": "mock_image"
+          },
+          {
+            "platform": "x",
+            "handle": "mock_gallery"
+          }
+        ]
+      },
+      {
+        "person": "mock_link",
+        "accounts": [
+          {
+            "platform": "x",
+            "handle": "mock_link"
+          }
+        ]
+      },
+      {
+        "person": "mock_quote",
+        "accounts": [
+          {
+            "platform": "x",
+            "handle": "mock_quote"
+          }
+        ]
+      },
+      {
+        "person": "mock_mentions",
+        "accounts": [
+          {
+            "platform": "x",
+            "handle": "mock_mentions"
+          }
+        ]
+      },
+      {
+        "person": "mock_video",
+        "accounts": [
+          {
+            "platform": "x",
+            "handle": "mock_video"
+          },
+          {
+            "platform": "youtube",
+            "handle": "mock_video_lab"
+          }
+        ]
+      },
+      {
+        "person": "mock_long",
+        "accounts": [
+          {
+            "platform": "x",
+            "handle": "mock_long"
+          }
+        ]
+      },
+      {
+        "person": "mock_creator",
+        "accounts": [
+          {
+            "platform": "youtube",
+            "handle": "mock_creator"
+          }
+        ]
+      }
+    ]
   }
 }

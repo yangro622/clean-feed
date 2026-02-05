@@ -218,6 +218,43 @@
       margin-bottom: 8px;
     }
 
+    .platform-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: #2f3336;
+      color: #e7e9ea;
+      flex: 0 0 auto;
+    }
+
+    .platform-icon--sm {
+      width: 16px;
+      height: 16px;
+      font-size: 9px;
+    }
+
+    .platform-x {
+      background: #0f1115;
+      border: 1px solid #2f3336;
+      color: #e7e9ea;
+    }
+
+    .platform-youtube {
+      background: #ff2d2d;
+      color: #fff;
+    }
+
+    .platform-web {
+      background: #3a3f44;
+      color: #fff;
+    }
+
     .username {
       font-weight: 700;
       color: #e7e9ea;
@@ -426,9 +463,21 @@
     .following-list {
       list-style: none;
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+      flex-direction: column;
+      gap: 10px;
       margin-top: 16px;
+    }
+
+    .following-item {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .account-entry {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .following-list li a {
@@ -628,7 +677,7 @@
         </div>
       </div>
     </div>
-    <p class="tagline">Tweets you care about. Nothing else.</p>
+    <p class="tagline">Posts you care about. Nothing else.</p>
     <p class="meta" id="status">Loading...</p>
   </header>
 
@@ -942,7 +991,7 @@
             <span class="quoted-username">@${quoted.username || 'tweet'}</span>
           </div>
           ${previewText ? `<div class="quoted-text">${previewText}</div>` : ''}
-          <div class="quoted-link">View quoted tweet →</div>
+          <div class="quoted-link">View quoted post →</div>
         </a>
       `;
     }
@@ -1082,18 +1131,23 @@
         </a>`
       ).join('');
       const newClass = isNew ? ' new-post' : '';
+      const platformInfo = getPlatformInfo(post.platform, post.link);
+      const platformIcon = renderPlatformIcon(post.platform, post.link);
+      const profileUrl = buildAccountUrl(platformInfo.key, post.username);
+      const displayHandle = formatHandle(post.username);
 
       return `
         <article class="post${newClass}">
           <div class="post-header">
-            <a class="username" href="https://x.com/${post.username}" target="_blank">@${post.username}</a>
+            ${platformIcon}
+            <a class="username" href="${profileUrl}" target="_blank">${displayHandle}</a>
             <span class="time">${time}</span>
           </div>
           <div class="post-content">${formatText(post.text, post.urlMap || {})}</div>
           ${renderQuotedTweet(post.quotedTweet)}
           ${images ? `<div class="post-images">${images}</div>` : ''}
           ${videos ? `<div class="post-images">${videos}</div>` : ''}
-          <a class="post-link" href="${post.link}" target="_blank">View on X</a>
+          <a class="post-link" href="${post.link}" target="_blank">View on ${platformInfo.label}</a>
         </article>
       `;
     }
@@ -1117,29 +1171,157 @@
       });
     }
 
+    const PLATFORM_INFO = {
+      x: { key: 'x', label: 'X', short: 'X' },
+      youtube: { key: 'youtube', label: 'YouTube', short: 'YT' },
+      web: { key: 'web', label: 'Web', short: 'WEB' },
+    };
+
+    function getPlatformKey(platform, link) {
+      const raw = (platform || '').toLowerCase();
+      if (raw === 'x' || raw === 'twitter') return 'x';
+      if (raw === 'youtube' || raw === 'yt') return 'youtube';
+
+      if (link) {
+        const lower = link.toLowerCase();
+        if (lower.includes('youtube.com') || lower.includes('youtu.be')) return 'youtube';
+        if (lower.includes('x.com') || lower.includes('twitter.com')) return 'x';
+      }
+
+      return 'web';
+    }
+
+    function getPlatformInfo(platform, link) {
+      const key = getPlatformKey(platform, link);
+      return PLATFORM_INFO[key] || PLATFORM_INFO.web;
+    }
+
+    function renderPlatformIcon(platform, link, size = 'md') {
+      const info = getPlatformInfo(platform, link);
+      const sizeClass = size === 'sm' ? ' platform-icon--sm' : '';
+      return `<span class="platform-icon${sizeClass} platform-${info.key}" role="img" aria-label="${info.label}">${info.short}</span>`;
+    }
+
+    function normalizeHandle(handle) {
+      if (!handle) return '';
+      return handle.startsWith('@') ? handle.slice(1) : handle;
+    }
+
+    function formatHandle(handle) {
+      const clean = normalizeHandle(handle);
+      return clean ? `@${clean}` : '';
+    }
+
+    function buildAccountUrl(platformKey, handle) {
+      const clean = normalizeHandle(handle);
+      if (!clean) return '#';
+      if (platformKey === 'youtube') {
+        return `https://www.youtube.com/@${clean}`;
+      }
+      if (platformKey === 'x') {
+        return `https://x.com/${clean}`;
+      }
+      return `https://x.com/${clean}`;
+    }
+
+    function normalizeAccountEntry(account) {
+      if (!account) return null;
+      if (typeof account === 'string') {
+        return { platform: 'x', handle: account };
+      }
+
+      const handle = account.handle || account.username || account.name;
+      if (!handle) return null;
+
+      return {
+        platform: account.platform || account.source || 'x',
+        handle,
+        url: account.url || account.link || null,
+      };
+    }
+
+    function normalizeAccountGroups(accounts) {
+      if (!Array.isArray(accounts) || accounts.length === 0) return [];
+
+      if (typeof accounts[0] === 'string') {
+        return accounts.map(handle => ({
+          person: normalizeHandle(handle) || handle,
+          accounts: [{ platform: 'x', handle }],
+        }));
+      }
+
+      if (accounts[0] && Array.isArray(accounts[0].accounts)) {
+        return accounts
+          .map(group => {
+            const groupAccounts = (group.accounts || [])
+              .map(normalizeAccountEntry)
+              .filter(Boolean);
+
+            if (groupAccounts.length === 0) return null;
+
+            return {
+              person: group.person || group.name || normalizeHandle(groupAccounts[0].handle) || groupAccounts[0].handle,
+              accounts: groupAccounts,
+            };
+          })
+          .filter(Boolean);
+      }
+
+      return accounts
+        .map(account => {
+          const normalized = normalizeAccountEntry(account);
+          if (!normalized) return null;
+          return {
+            person: account.person || account.name || normalizeHandle(normalized.handle) || normalized.handle,
+            accounts: [normalized],
+          };
+        })
+        .filter(Boolean);
+    }
+
+    function getAccountHandleList(accounts) {
+      return normalizeAccountGroups(accounts)
+        .flatMap(group => group.accounts.map(account => normalizeHandle(account.handle)).filter(Boolean));
+    }
+
     function renderAccounts(accounts) {
       const list = document.getElementById('accounts-list');
       if (!list) return;
 
-      list.innerHTML = accounts.map(username =>
-        `<li><a href="https://x.com/${username}" target="_blank">@${username}</a></li>`
-      ).join('');
+      const groups = normalizeAccountGroups(accounts);
+      list.innerHTML = groups.map(group => {
+        const entries = group.accounts.map(account => {
+          const handle = normalizeHandle(account.handle);
+          const icon = renderPlatformIcon(account.platform, account.url, 'sm');
+          const platformKey = getPlatformKey(account.platform, account.url);
+          const url = account.url || buildAccountUrl(platformKey, handle);
+          const label = formatHandle(handle);
+          if (!label) return '';
+          return `<span class="account-entry">${icon}<a href="${url}" target="_blank">${label}</a></span>`;
+        }).join('');
+        return `<li class="following-item">${entries}</li>`;
+      }).join('');
 
-      const count = accounts.length;
+      const totalAccounts = groups.reduce((sum, group) => sum + group.accounts.length, 0);
+      const totalPeople = groups.length;
       const countEl = document.getElementById('following-count');
       const subtitleEl = document.getElementById('following-subtitle');
       const triggerEl = document.getElementById('following-trigger');
 
       if (countEl) {
-        countEl.textContent = count;
+        countEl.textContent = totalAccounts;
       }
 
       if (subtitleEl) {
-        subtitleEl.textContent = `${count} account${count === 1 ? '' : 's'}`;
+        if (totalPeople === totalAccounts) {
+          subtitleEl.textContent = `${totalAccounts} account${totalAccounts === 1 ? '' : 's'}`;
+        } else {
+          subtitleEl.textContent = `${totalPeople} people · ${totalAccounts} accounts`;
+        }
       }
 
       if (triggerEl) {
-        triggerEl.setAttribute('aria-label', `Following (${count})`);
+        triggerEl.setAttribute('aria-label', `Following (${totalAccounts})`);
       }
     }
 
@@ -1717,7 +1899,7 @@ Unique usernames: ${[...new Set(tweets.map(t => t.username))].join(', ')}`;
       try {
         const response = await fetch('/api/feed');
         const data = await response.json();
-        const validAccounts = data._meta?.accounts || [];
+        const validAccounts = getAccountHandleList(data._meta?.accounts || []);
 
         if (validAccounts.length === 0) return;
 
@@ -1732,7 +1914,8 @@ Unique usernames: ${[...new Set(tweets.map(t => t.username))].join(', ')}`;
             const cursor = event.target.result;
             if (cursor) {
               const tweet = cursor.value;
-              if (!validAccounts.includes(tweet.username)) {
+              const username = normalizeHandle(tweet.username);
+              if (!validAccounts.includes(username)) {
                 console.log(`[Cleanup] Removing tweet from unexpected account: @${tweet.username}`);
                 cursor.delete();
                 deletedCount++;

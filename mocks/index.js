@@ -68,7 +68,7 @@ function getMockFeedSync({ since, until, cursor } = {}) {
 
       allPosts.push({
         id: syntheticId,
-        platform: 'twitter',
+        platform: post.platform || 'twitter',
         username: post.username,
         text: post.text,
         date: postDate.toISOString(),
@@ -76,6 +76,7 @@ function getMockFeedSync({ since, until, cursor } = {}) {
         conversationId: syntheticConversationId,
         inReplyToStatusId: syntheticInReplyTo,
         images: post.images || [],
+        videos: post.videos || [],
         urlMap: post.urlMap || {},
         quotedTweet: post.quotedTweet || null,
       });

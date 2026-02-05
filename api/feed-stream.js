@@ -19,12 +19,30 @@ module.exports = async (req, res) => {
     const mockData = getMockFeed();
     const mockAccounts = getMockAccounts();
 
-    res.write(`data: ${JSON.stringify({ type: 'start', total: mockAccounts.length, accounts: mockAccounts })}\n\n`);
+    const normalizeHandle = (handle) => {
+      if (!handle) return null;
+      return handle.startsWith('@') ? handle.slice(1) : handle;
+    };
+
+    const mockHandles = Array.isArray(mockAccounts)
+      ? mockAccounts.flatMap((entry) => {
+        if (typeof entry === 'string') return [normalizeHandle(entry)];
+        if (entry && Array.isArray(entry.accounts)) {
+          return entry.accounts
+            .map(account => normalizeHandle(account.handle || account.username || account.name))
+            .filter(Boolean);
+        }
+        const handle = normalizeHandle(entry?.handle || entry?.username || entry?.name);
+        return handle ? [handle] : [];
+      }).filter(Boolean)
+      : [];
+
+    res.write(`data: ${JSON.stringify({ type: 'start', total: mockHandles.length, accounts: mockHandles })}\n\n`);
 
     // Simulate streaming by sending posts per account
-    for (let i = 0; i < mockAccounts.length; i++) {
-      const username = mockAccounts[i];
-      res.write(`data: ${JSON.stringify({ type: 'progress', current: i + 1, total: mockAccounts.length, username })}\n\n`);
+    for (let i = 0; i < mockHandles.length; i++) {
+      const username = mockHandles[i];
+      res.write(`data: ${JSON.stringify({ type: 'progress', current: i + 1, total: mockHandles.length, username })}\n\n`);
       const userPosts = mockData.posts.filter(p => p.username === username);
       if (userPosts.length > 0) {
         res.write(`data: ${JSON.stringify({ type: 'posts', username, posts: userPosts })}\n\n`);
@@ -36,7 +54,7 @@ module.exports = async (req, res) => {
       count: mockData.count,
       tweetsFetched: mockData._meta.tweetsFetched,
       estimatedCost: mockData._meta.estimatedCost,
-      accounts: mockAccounts
+      accounts: mockHandles
     })}\n\n`);
     res.end();
     return;
