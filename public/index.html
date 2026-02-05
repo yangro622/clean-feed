@@ -13,7 +13,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Clean Feed">
-  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon-180.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
   <style>
     * {
       box-sizing: border-box;
@@ -43,6 +44,22 @@
       justify-content: space-between;
       gap: 12px;
       flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .app-logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      object-fit: contain;
+      flex: 0 0 auto;
+      background: #0f1115;
+      border: 1px solid #2f3336;
     }
 
     .header-actions {
@@ -688,7 +705,10 @@
 <body>
   <header>
     <div class="header-row">
-      <h1>Clean Feed</h1>
+      <div class="brand">
+        <img class="app-logo" src="/logo.png" alt="Clean Feed logo" loading="eager" decoding="async">
+        <h1>Clean Feed</h1>
+      </div>
       <div class="header-actions">
         <button class="following-trigger" id="following-trigger" type="button" aria-haspopup="dialog" aria-expanded="false">
           Following <span class="following-count" id="following-count">0</span>
