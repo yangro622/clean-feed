@@ -1,41 +1,50 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with this repository.
 
 ## User Preferences
 
-- User has no prior frontend experience - explain frontend concepts in beginner-friendly terms
-- For session workflow, use `/worktree`, `/merge`, `/status` commands
+- The user has no prior frontend experience. Explain frontend concepts in beginner-friendly terms.
+- For session workflow, use `/worktree`, `/merge`, `/status` commands.
 
 ## Commands
 
 ```bash
 npm install      # Install dependencies
-npm run dev      # Start local dev server (uses vercel dev)
+npm run dev      # Start local dev server (custom Node server)
 vercel           # Deploy to Vercel
 ```
 
-## Architecture
+## Architecture Overview
 
-This is a minimal Twitter/X feed reader using twitterapi.io.
+- **Frontend**: `public/index.html` is a single-page app (HTML/CSS/JS) that renders the feed.
+- **Backend**: Vercel-style serverless endpoints in `api/`.
+- **Sources**:
+  - X via `twitterapi.io`
+  - YouTube via RSS feeds (channel `channelId`)
 
-**Backend** (`api/feed.js`): Vercel serverless function that:
-- Reads Twitter handles from `accounts.json`
-- Uses twitterapi.io API ($0.15/1k tweets) with built-in cost controls (max $1/request)
-- Filters posts to last 24 hours, returns sorted by newest first
-- Skips retweets (only original posts)
-- Caches responses for 24 hours (`s-maxage=86400`)
+## Key Endpoints
 
-**Frontend** (`public/index.html`): Single-page vanilla HTML/CSS/JS that calls `/api/feed` and renders posts.
+- `api/feed.js`: basic feed (X + YouTube), CDN cached.
+- `api/feed-sync.js`: cursor-based sync for newer/older posts, not cached.
+- `api/feed-stream.js`: server-sent events stream of per-account results.
+- `api/balance.js`: twitterapi.io credit balance.
 
-**Configuration**:
-- `accounts.json`: Array of Twitter usernames to follow
-- `.env`: Contains `TWITTERAPI_IO_KEY` (gitignored)
-- `vercel.json`: Routes `/api/*` to serverless functions, everything else to `public/`
+## Behavior Notes
 
-## Key Design Decisions
+- Posts are chronological, newest first.
+- Retweets are filtered out.
+- Thread replies are combined for same-author threads in the UI.
+- IndexedDB stores cached posts client-side with a retention limit.
+- `accounts.json` can group people and include multiple platforms per person.
 
-- No database—fetches fresh on each load
-- No auth—personal use only
-- No infinite scroll—renders all posts from last 7 days at once
-- twitterapi.io for reliable access (switched from Twitter API v2 due to cost/access issues)
+## Configuration
+
+- `TWITTERAPI_IO_KEY` is required for X.
+- `accounts.json` controls who is followed.
+- `vercel.json` routes `/api/*` to serverless functions.
+
+## Docs
+
+- `README.md` is public-facing and should stay high-level.
+- Keep docs aligned with actual behavior in code.
