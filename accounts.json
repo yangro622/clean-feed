@@ -41,5 +41,11 @@
     "accounts": [
       { "platform": "x", "handle": "bcherny" }
     ]
+  },
+  {
+    "person": "Alex Wissner-Gross",
+    "accounts": [
+      { "platform": "x", "handle": "alexwg" }
+    ]
   }
 ]
