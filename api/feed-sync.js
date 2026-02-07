@@ -217,7 +217,7 @@ function transformTweet(tweet) {
     id: tweet.id,
     platform: 'twitter',
     username: tweet.author?.userName,
-    text: tweet.text,
+    text: tweet.note_tweet?.text || tweet.text,
     date: new Date(tweet.createdAt).toISOString(),
     link: tweet.url || `https://x.com/${tweet.author?.userName}/status/${tweet.id}`,
     conversationId: getConversationId(tweet),
