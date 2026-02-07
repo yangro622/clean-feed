@@ -41,5 +41,11 @@
     "accounts": [
       { "platform": "x", "handle": "bcherny" }
     ]
+  },
+  {
+    "person": "Alex Wang",
+    "accounts": [
+      { "platform": "x", "handle": "alexwg" }
+    ]
   }
 ]
