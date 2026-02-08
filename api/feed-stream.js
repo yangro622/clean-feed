@@ -143,7 +143,7 @@ module.exports = async (req, res) => {
 
           const post = {
             username: tweet.author?.userName || username,
-            text: tweet.text,
+            text: tweet.note_tweet?.text || tweet.text,
             date,
             link: tweet.url || `https://x.com/${username}/status/${tweet.id}`,
             conversationId,
